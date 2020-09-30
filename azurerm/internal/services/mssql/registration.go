@@ -38,6 +38,7 @@ func (r Registration) SupportedResources() map[string]*schema.Resource {
 		"azurerm_mssql_server_extended_auditing_policy":                 resourceMsSqlServerExtendedAuditingPolicy(),
 		"azurerm_mssql_server_security_alert_policy":                    resourceMsSqlServerSecurityAlertPolicy(),
 		"azurerm_mssql_server_vulnerability_assessment":                 resourceMsSqlServerVulnerabilityAssessment(),
+		"azurerm_mssql_sync_group":                                      resourceMsSqlSyncGroup(),
 		"azurerm_mssql_virtual_machine":                                 resourceMsSqlVirtualMachine(),
 	}
 }
