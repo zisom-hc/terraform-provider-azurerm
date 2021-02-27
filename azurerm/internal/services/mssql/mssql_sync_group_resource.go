@@ -6,10 +6,10 @@ import (
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/services/preview/sql/mgmt/v3.0/sql"
+	"github.com/Azure/go-autorest/autorest"
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/helper/validation"
 
-	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/helpers/azure"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/helpers/tf"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/internal/clients"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/internal/services/mssql/parse"
@@ -19,15 +19,15 @@ import (
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/utils"
 )
 
-func resourceArmMsSqlSyncGroup() *schema.Resource {
+func resourceMsSqlSyncGroup() *schema.Resource {
 	return &schema.Resource{
-		Create: resourceArmMsSqlSyncGroupCreateUpdate,
-		Read:   resourceArmMsSqlSyncGroupRead,
-		Update: resourceArmMsSqlSyncGroupCreateUpdate,
-		Delete: resourceArmMsSqlSyncGroupDelete,
+		Create: resourceMsSqlSyncGroupCreateUpdate,
+		Read:   resourceMsSqlSyncGroupRead,
+		Update: resourceMsSqlSyncGroupCreateUpdate,
+		Delete: resourceMsSqlSyncGroupDelete,
 
 		Importer: azSchema.ValidateResourceIDPriorToImport(func(id string) error {
-			_, err := parse.MsSqlSyncGroupID(id)
+			_, err := parse.SyncGroupID(id)
 			return err
 		}),
 
@@ -43,14 +43,7 @@ func resourceArmMsSqlSyncGroup() *schema.Resource {
 				Type:         schema.TypeString,
 				Required:     true,
 				ForceNew:     true,
-				ValidateFunc: azure.ValidateMsSqlSyncGroupName,
-			},
-
-			"database_id": {
-				Type:         schema.TypeString,
-				Required:     true,
-				ForceNew:     true,
-				ValidateFunc: validate.MsSqlDatabaseID,
+				ValidateFunc: validation.StringIsNotEmpty, // TODO: validatefunc needed
 			},
 
 			"conflict_resolution_policy": {
@@ -68,20 +61,30 @@ func resourceArmMsSqlSyncGroup() *schema.Resource {
 				// TODO What's a valid interval?
 			},
 
-			"sync_database_id": {
+			"hub_database_id": {
 				Type:         schema.TypeString,
 				Required:     true,
-				ValidateFunc: validate.MsSqlDatabaseID,
+				ForceNew:     true,
+				ValidateFunc: validate.DatabaseID,
 			},
 
 			"hub_database_username": {
-				Type:     schema.TypeString,
-				Required: true,
+				Type:         schema.TypeString,
+				Required:     true,
+				ValidateFunc: validation.StringIsNotEmpty,
 			},
 
 			"hub_database_password": {
-				Type:     schema.TypeString,
-				Required: true,
+				Type:         schema.TypeString,
+				Required:     true,
+				Sensitive:    true,
+				ValidateFunc: validation.StringIsNotEmpty,
+			},
+
+			"sync_database_id": {
+				Type:         schema.TypeString,
+				Required:     true,
+				ValidateFunc: validate.DatabaseID,
 			},
 
 			"primary_sync_member_name": {
@@ -92,7 +95,7 @@ func resourceArmMsSqlSyncGroup() *schema.Resource {
 
 			"table": {
 				Type:     schema.TypeList,
-				Optional: true,
+				Required: true,
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
 						"name": {
@@ -132,98 +135,113 @@ func resourceArmMsSqlSyncGroup() *schema.Resource {
 	}
 }
 
-func resourceArmMsSqlSyncGroupCreateUpdate(d *schema.ResourceData, meta interface{}) error {
+func resourceMsSqlSyncGroupCreateUpdate(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*clients.Client).MSSQL.SyncGroupsClient
 	ctx, cancel := timeouts.ForCreateUpdate(meta.(*clients.Client).StopContext, d)
 	defer cancel()
 
-	name           := d.Get("name").(string)
+	name := d.Get("name").(string)
+	hubUsername := d.Get("hub_database_username").(string)
+	hubPassword := d.Get("hub_database_password").(string)
 	syncDatabaseId := d.Get("sync_database_id").(string)
-	hubDbUsername  := d.Get("hub_database_username").(string)
-	hubDbPassword  := d.Get("hub_database_password").(string)
 
-	databaseId, err := parse.MsSqlDatabaseID(d.Get("database_id").(string))
+	hubId, err := parse.DatabaseID(d.Get("hub_database_id").(string))
 	if err != nil {
 		return err
 	}
 
+	id := parse.NewSyncGroupID(hubId.SubscriptionId, hubId.ResourceGroup, hubId.ServerName, hubId.Name, name)
+
 	if d.IsNewResource() {
-		existing, err := client.Get(ctx, databaseId.ResourceGroup, databaseId.MsSqlServer, databaseId.Name, name)
+		existing, err := client.Get(ctx, id.ResourceGroup, id.ServerName, id.DatabaseName, id.Name)
 		if err != nil {
 			if !utils.ResponseWasNotFound(existing.Response) {
-				return fmt.Errorf("checking for presence of existing SQL Sync Group %q (Resource Group %q, Server %q, Database %q): %+v", name, databaseId.ResourceGroup, databaseId.MsSqlServer, databaseId.Name, err)
+				return fmt.Errorf("checking for presence of existing SQL Sync Group %q (Resource Group %q, Server %q, Database %q): %+v", id.Name, id.ResourceGroup, id.ServerName, id.DatabaseName, err)
 			}
 		}
 
 		if existing.ID != nil && *existing.ID != "" {
-			return tf.ImportAsExistsError("azurerm_mssql_sync_group", *existing.ID)
+			return tf.ImportAsExistsError("azurerm_mssql_sync_group", id.String())
 		}
 
 		syncGroup := sql.SyncGroup{
 			SyncGroupProperties: &sql.SyncGroupProperties{
 				ConflictResolutionPolicy: sql.SyncConflictResolutionPolicy(d.Get("conflict_resolution_policy").(string)),
-				HubDatabaseUserName:      utils.String(hubDbUsername),
-				HubDatabasePassword:      utils.String(hubDbPassword),
+				HubDatabaseUserName:      utils.String(hubUsername),
+				HubDatabasePassword:      utils.String(hubPassword),
 				SyncDatabaseID:           utils.String(syncDatabaseId),
 			},
 		}
 
-		future, err := client.CreateOrUpdate(ctx, databaseId.ResourceGroup, databaseId.MsSqlServer, databaseId.Name, name, syncGroup)
+		future, err := client.CreateOrUpdate(ctx, id.ResourceGroup, id.ServerName, id.DatabaseName, id.Name, syncGroup)
 		if err != nil {
-			return fmt.Errorf("creating/updating SQL Sync Group %q (Resource Group %q, Server %q, Database: %q): %+v", name, databaseId.ResourceGroup, databaseId.MsSqlServer, databaseId.Name, err)
+			return fmt.Errorf("creating/updating SQL Sync Group %q (Resource Group %q, Server %q, Database: %q): %+v", id.Name, id.ResourceGroup, id.ServerName, id.DatabaseName, err)
 		}
-
 		if err = future.WaitForCompletionRef(ctx, client.Client); err != nil {
-			return fmt.Errorf("waiting on create/update operation for SQL Sync Group %q (Resource Group %q, Server %q, Database: %q): %+v", name, databaseId.ResourceGroup, databaseId.MsSqlServer, databaseId.Name, err)
+			if derr, ok := err.(autorest.DetailedError); ok && derr.Original != nil {
+				return fmt.Errorf("creating/updating SQL Sync Group %q (Resource Group %q, Server %q, Database: %q): %+v", id.Name, id.ResourceGroup, id.ServerName, id.DatabaseName, derr.Original)
+			}
+			return fmt.Errorf("waiting on create/update operation for SQL Sync Group %q (Resource Group %q, Server %q, Database: %q): %+v", id.Name, id.ResourceGroup, id.ServerName, id.DatabaseName, err)
 		}
 	}
 
-	syncGroup, err := client.Get(ctx, databaseId.ResourceGroup, databaseId.MsSqlServer, databaseId.Name, name)
-	if err != nil {
-		return fmt.Errorf("retrieving newly created SQL Sync Group %q (Resource Group %q, Server %q, Database: %q): %+v", name, databaseId.ResourceGroup, databaseId.MsSqlServer, databaseId.Name, err)
-	}
-
-	if syncGroup.ID == nil {
-		return fmt.Errorf("nil ID returned for newly created SQL Sync Group %q (Resource Group %q, Server %q, Database: %q): %+v", name, databaseId.ResourceGroup, databaseId.MsSqlServer, databaseId.Name, err)
-	}
-	d.SetId(*syncGroup.ID)
-
-	//syncGroup := sql.SyncGroup{
-	//	SyncGroupProperties: &sql.SyncGroupProperties{
-	//		Schema: &sql.SyncGroupSchema{},
-	//	},
+	//syncGroup, err := client.Get(ctx, hubId.ResourceGroup, hubId.ServerName, hubId.Name, name)
+	//if err != nil {
+	//	return fmt.Errorf("retrieving newly created SQL Sync Group %q (Resource Group %q, Server %q, Database: %q): %+v", name, hubId.ResourceGroup, hubId.ServerName, hubId.Name, err)
 	//}
+
+	//if syncGroup.ID == nil {
+	//	return fmt.Errorf("nil ID returned for newly created SQL Sync Group %q (Resource Group %q, Server %q, Database: %q): %+v", name, hubId.ResourceGroup, hubId.ServerName, hubId.Name, err)
+	//}
+	d.SetId(id.String())
+
+	refreshFuture, err := client.RefreshHubSchema(ctx, id.ResourceGroup, id.ServerName, id.DatabaseName, id.Name)
+	if err != nil {
+		return fmt.Errorf("refreshing schema for SQL Sync Group %q (Resource Group %q, Server %q, Database: %q): %+v", id.Name, id.ResourceGroup, id.ServerName, id.DatabaseName, err)
+	}
+	if err = refreshFuture.WaitForCompletionRef(ctx, client.Client); err != nil {
+		return fmt.Errorf("waiting on schema refresh operation for SQL Sync Group %q (Resource Group %q, Server %q, Database: %q): %+v", id.Name, id.ResourceGroup, id.ServerName, id.DatabaseName, err)
+	}
+
+	tables := d.Get("table")
+
+	syncGroupUpdate := sql.SyncGroup{
+		SyncGroupProperties: &sql.SyncGroupProperties{
+			Schema: &sql.SyncGroupSchema{
+				//MasterSyncMemberName: utils.String(""),
+				Tables: expandMsSqlSyncGroupSchemaTables(tables.([]interface{})),
+			},
+		},
+	}
 
 	if interval, exists := d.GetOk("interval"); exists {
-		syncGroup.SyncGroupProperties.Interval = utils.Int32(int32(interval.(int)))
+		syncGroupUpdate.SyncGroupProperties.Interval = utils.Int32(int32(interval.(int)))
 	}
 
-	if tables, exists := d.GetOk("table"); exists {
-		syncGroup.SyncGroupProperties.Schema.Tables = expandMsSqlSyncGroupSchemaTables(tables.([]interface{}))
-	}
-
-	if primarySyncMemberName, exists := d.GetOk("primary_sync_member_name"); exists {
-		syncGroup.SyncGroupProperties.Schema.MasterSyncMemberName = utils.String(primarySyncMemberName.(string))
-	}
-
-	//future, err := client.CreateOrUpdate(ctx, databaseId.ResourceGroup, databaseId.MsSqlServer, databaseId.Name, name, syncGroup)
-	//if err != nil {
-	//	return fmt.Errorf("creating/updating SQL Sync Group %q (Resource Group %q, Server %q, Database: %q): %+v", name, databaseId.ResourceGroup, databaseId.MsSqlServer, databaseId.Name, err)
-	//}
-	//
-	//if err = future.WaitForCompletionRef(ctx, client.Client); err != nil {
-	//	return fmt.Errorf("waiting on create/update operation for SQL Sync Group %q (Resource Group %q, Server %q, Database: %q): %+v", name, databaseId.ResourceGroup, databaseId.MsSqlServer, databaseId.Name, err)
+	//if primarySyncMemberName, exists := d.GetOk("primary_sync_member_name"); exists {
+	//	syncGroupUpdate.SyncGroupProperties.Schema.MasterSyncMemberName = utils.String(primarySyncMemberName.(string))
 	//}
 
-	return resourceArmMsSqlSyncGroupRead(d, meta)
+	future, err := client.CreateOrUpdate(ctx, hubId.ResourceGroup, hubId.ServerName, hubId.Name, name, syncGroupUpdate)
+	if err != nil {
+		return fmt.Errorf("creating/updating schema configuration for SQL Sync Group %q (Resource Group %q, Server %q, Database: %q): %+v", name, hubId.ResourceGroup, hubId.ServerName, hubId.Name, err)
+	}
+	if err = future.WaitForCompletionRef(ctx, client.Client); err != nil {
+		if derr, ok := err.(autorest.DetailedError); ok && derr.Original != nil {
+			return fmt.Errorf("waiting on schema create/update operation for SQL Sync Group %q (Resource Group %q, Server %q, Database: %q): %+v", id.Name, id.ResourceGroup, id.ServerName, id.DatabaseName, derr.Original)
+		}
+		return fmt.Errorf("waiting on schema create/update operation for SQL Sync Group %q (Resource Group %q, Server %q, Database: %q): %+v", name, hubId.ResourceGroup, hubId.ServerName, hubId.Name, err)
+	}
+
+	return resourceMsSqlSyncGroupRead(d, meta)
 }
 
-func resourceArmMsSqlSyncGroupRead(d *schema.ResourceData, meta interface{}) error {
+func resourceMsSqlSyncGroupRead(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*clients.Client).MSSQL.SyncGroupsClient
 	ctx, cancel := timeouts.ForCreateUpdate(meta.(*clients.Client).StopContext, d)
 	defer cancel()
 
-	id, err := parse.MsSqlSyncGroupID(d.Id())
+	id, err := parse.SyncGroupID(d.Id())
 	if err != nil {
 		return err
 	}
@@ -246,8 +264,8 @@ func resourceArmMsSqlSyncGroupRead(d *schema.ResourceData, meta interface{}) err
 		return fmt.Errorf("making Read request on MsSql Database  %q (Resource Group %q, Server %q): %+v", id.DatabaseName, id.ResourceGroup, id.ServerName, err)
 	}
 
-	if err = d.Set("database_id", dbResp.ID); err != nil {
-		return fmt.Errorf("setting %q", "database_id")
+	if err = d.Set("hub_database_id", dbResp.ID); err != nil {
+		return fmt.Errorf("setting %q", "hub_database_id")
 	}
 
 	if err = d.Set("name", resp.Name); err != nil {
@@ -289,12 +307,12 @@ func resourceArmMsSqlSyncGroupRead(d *schema.ResourceData, meta interface{}) err
 	return nil
 }
 
-func resourceArmMsSqlSyncGroupDelete(d *schema.ResourceData, meta interface{}) error {
+func resourceMsSqlSyncGroupDelete(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*clients.Client).MSSQL.SyncGroupsClient
 	ctx, cancel := timeouts.ForDelete(meta.(*clients.Client).StopContext, d)
 	defer cancel()
 
-	id, err := parse.MsSqlSyncGroupID(d.Id())
+	id, err := parse.SyncGroupID(d.Id())
 	if err != nil {
 		return err
 	}
