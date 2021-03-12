@@ -74,6 +74,8 @@ func (MsSqlSyncGroupResource) template(data acceptance.TestData) string {
 	return fmt.Sprintf(`
 %[1]s
 
+resource "azurerm_mssql_"
+
 resource "azurerm_mssql_database" "hub" {
   name        = "syncHub%[2]d"
   server_id   = azurerm_mssql_server.test.id
