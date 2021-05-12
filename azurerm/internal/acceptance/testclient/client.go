@@ -14,7 +14,16 @@ import (
 var _client *clients.Client
 var clientLock = &sync.Mutex{}
 
-func Build() (*clients.Client, error) {
+type AuthMethod int
+
+const (
+	AuthMethodAny AuthMethod = iota
+	AuthMethodClientSecret
+	AuthMethodClientCertificate
+	AuthMethodAzureCli
+)
+
+func Build(authMethod AuthMethod) (*clients.Client, error) {
 	clientLock.Lock()
 	defer clientLock.Unlock()
 
@@ -31,10 +40,21 @@ func Build() (*clients.Client, error) {
 			ClientSecret:   os.Getenv("ARM_CLIENT_SECRET"),
 			Environment:    environment,
 			MetadataHost:   os.Getenv("ARM_METADATA_HOST"),
-
-			// we intentionally only support Client Secret auth for tests (since those variables are used all over)
-			SupportsClientSecretAuth: true,
 		}
+
+		switch authMethod {
+		case AuthMethodAzureCli:
+			builder.SupportsAzureCliToken = true
+		case AuthMethodClientCertificate:
+			builder.SupportsClientCertAuth = true
+		case AuthMethodClientSecret:
+			builder.SupportsClientSecretAuth = true
+		default:
+			builder.SupportsClientCertAuth = true
+			builder.SupportsClientSecretAuth = true
+			builder.SupportsAzureCliToken = true
+		}
+
 		config, err := builder.Build()
 		if err != nil {
 			return nil, fmt.Errorf("Error building ARM Client: %+v", err)

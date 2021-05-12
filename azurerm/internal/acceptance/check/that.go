@@ -14,11 +14,14 @@ import (
 )
 
 type thatType struct {
+	// authMethod sets a single supported authentication method
+	authMethod testclient.AuthMethod
+
 	// resourceName being the full resource name e.g. azurerm_foo.bar
 	resourceName string
 }
 
-// Key returns a type which can be used for more fluent assertions for a given Resource
+// That returns a type which can be used for more fluent assertions for a given Resource
 func That(resourceName string) thatType {
 	return thatType{
 		resourceName: resourceName,
@@ -28,7 +31,7 @@ func That(resourceName string) thatType {
 // DoesNotExistInAzure validates that the specified resource does not exist within Azure
 func (t thatType) DoesNotExistInAzure(testResource types.TestResource) pluginsdk.TestCheckFunc {
 	return func(s *terraform.State) error {
-		client, err := testclient.Build()
+		client, err := testclient.Build(t.authMethod)
 		if err != nil {
 			return fmt.Errorf("building client: %+v", err)
 		}
@@ -39,7 +42,7 @@ func (t thatType) DoesNotExistInAzure(testResource types.TestResource) pluginsdk
 // ExistsInAzure validates that the specified resource exists within Azure
 func (t thatType) ExistsInAzure(testResource types.TestResource) pluginsdk.TestCheckFunc {
 	return func(s *terraform.State) error {
-		client, err := testclient.Build()
+		client, err := testclient.Build(t.authMethod)
 		if err != nil {
 			return fmt.Errorf("building client: %+v", err)
 		}

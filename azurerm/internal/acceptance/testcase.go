@@ -40,7 +40,7 @@ func (td TestData) ResourceTest(t *testing.T, testResource types.TestResource, s
 	testCase := resource.TestCase{
 		PreCheck: func() { PreCheck(t) },
 		CheckDestroy: func(s *terraform.State) error {
-			client, err := testclient.Build()
+			client, err := testclient.Build(td.AuthMethod)
 			if err != nil {
 				return fmt.Errorf("building client: %+v", err)
 			}
@@ -55,7 +55,7 @@ func (td TestData) ResourceSequentialTest(t *testing.T, testResource types.TestR
 	testCase := resource.TestCase{
 		PreCheck: func() { PreCheck(t) },
 		CheckDestroy: func(s *terraform.State) error {
-			client, err := testclient.Build()
+			client, err := testclient.Build(td.AuthMethod)
 			if err != nil {
 				return fmt.Errorf("building client: %+v", err)
 			}

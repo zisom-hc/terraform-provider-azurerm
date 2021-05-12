@@ -9,6 +9,7 @@ import (
 
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/hashicorp/terraform-plugin-sdk/helper/acctest"
+	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/internal/acceptance/testclient"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/internal/features"
 )
 
@@ -46,6 +47,9 @@ type TestData struct {
 	// EnvironmentName is the name of the Azure Environment where we're running
 	EnvironmentName string
 
+	// AuthMethod is the authentication method to use for this test
+	AuthMethod testclient.AuthMethod
+
 	// MetadataURL is the url of the endpoint where the environment is obtained
 	MetadataURL string
 
@@ -68,6 +72,7 @@ func BuildTestData(t *testing.T, resourceType string, resourceLabel string) Test
 		ResourceName:    fmt.Sprintf("%s.%s", resourceType, resourceLabel),
 		Environment:     *env,
 		EnvironmentName: EnvironmentName(),
+		AuthMethod:      testclient.AuthMethodClientSecret,
 		MetadataURL:     os.Getenv("ARM_METADATA_HOST"),
 
 		ResourceType:  resourceType,
