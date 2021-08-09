@@ -162,27 +162,16 @@ func resourceEventHubNamespaceCustomerManagedKeyDelete(d *pluginsdk.ResourceData
 		}
 		return fmt.Errorf("retrieving %s: %+v", *id, err)
 	}
-
-	// Since this isn't a real object and it cannot be disabled once Customer Managed Key at rest has been enabled
-	// And it must keep at least one key once Customer Managed Key is enabled
-	// So for the delete operation, it has to recreate the EventHub Namespace with disabled Customer Managed Key
-	future, err := client.Delete(ctx, *id)
-	if err != nil {
-		if response.WasNotFound(future.HttpResponse) {
-			return nil
-		}
-		return fmt.Errorf("deleting %s: %+v", *id, err)
+	if resp.Model == nil || resp.Model.Properties == nil {
+		return fmt.Errorf("retrieving %s: `properties` was nil", *id)
+	}
+	source := namespaces.KeySource("Microsoft.EventHub") // TODO: Swagger PR
+	resp.Model.Properties.Encryption = &namespaces.Encryption{
+		KeySource: &source,
 	}
 
-	if err := waitForEventHubNamespaceToBeDeleted(ctx, client, *id); err != nil {
-		return err
-	}
-
-	namespace := resp.Model
-	namespace.Properties.Encryption = nil
-
-	if err = client.CreateOrUpdateThenPoll(ctx, *id, *namespace); err != nil {
-		return fmt.Errorf("removing %s: %+v", *id, err)
+	if err = client.CreateOrUpdateThenPoll(ctx, *id, *resp.Model); err != nil {
+		return fmt.Errorf("removing Customer Managed Key from %s: %+v", *id, err)
 	}
 
 	return nil
