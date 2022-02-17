@@ -3,6 +3,8 @@ package sdk
 import (
 	"reflect"
 	"testing"
+
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
 type decodeTestData struct {
@@ -24,6 +26,7 @@ func TestDecode_TopLevelFieldsRequired(t *testing.T) {
 		MapOfBools    map[string]bool   `tfschema:"map_of_bools"`
 		MapOfNumbers  map[string]int    `tfschema:"map_of_numbers"`
 		MapOfStrings  map[string]string `tfschema:"map_of_strings"`
+		SetOfStrings  []string          `tfschema:"set_of_strings"`
 	}
 	decodeTestData{
 		State: map[string]interface{}{
@@ -56,6 +59,12 @@ func TestDecode_TopLevelFieldsRequired(t *testing.T) {
 				"guten":   "tag",
 				"morning": "alvaro",
 			},
+			"set_of_strings": schema.NewSet(schema.HashString, []interface{}{
+				"no",
+				"order",
+				"particular",
+				"in",
+			}),
 		},
 		Input: &SimpleType{},
 		Expected: &SimpleType{
@@ -87,6 +96,12 @@ func TestDecode_TopLevelFieldsRequired(t *testing.T) {
 				"salut":   "tous les monde",
 				"guten":   "tag",
 				"morning": "alvaro",
+			},
+			SetOfStrings: []string{
+				"in",
+				"no",
+				"particular",
+				"order",
 			},
 		},
 		ExpectError: false,
