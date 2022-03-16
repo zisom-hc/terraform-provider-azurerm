@@ -3,30 +3,29 @@ package appservice_test
 import (
 	"context"
 	"fmt"
-	"testing"
-
 	"github.com/hashicorp/terraform-provider-azurerm/internal/acceptance"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/acceptance/check"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/clients"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/services/appservice/parse"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/tf/pluginsdk"
 	"github.com/hashicorp/terraform-provider-azurerm/utils"
+	"testing"
 )
 
 type FunctionAppFunctionResource struct{}
 
-func TestAccFunctionAppFunction_basic(t *testing.T) {
+func TestAccFunctionAppFunction_basicLinux(t *testing.T) {
 	data := acceptance.BuildTestData(t, "azurerm_function_app_function", "test")
 	r := FunctionAppFunctionResource{}
 
 	data.ResourceTest(t, r, []acceptance.TestStep{
 		{
-			Config: r.basic(data),
+			Config: r.basicLinux(data),
 			Check: acceptance.ComposeTestCheckFunc(
 				check.That(data.ResourceName).ExistsInAzure(r),
 			),
 		},
-		data.ImportStep("language"),
+		data.ImportStep("language", "file"),
 	})
 }
 
@@ -36,19 +35,19 @@ func TestAccFunctionAppFunction_basicUpdate(t *testing.T) {
 
 	data.ResourceTest(t, r, []acceptance.TestStep{
 		{
-			Config: r.basic(data),
+			Config: r.basicLinux(data),
 			Check: acceptance.ComposeTestCheckFunc(
 				check.That(data.ResourceName).ExistsInAzure(r),
 			),
 		},
-		data.ImportStep("language"),
+		data.ImportStep("language", "file"),
 		{
 			Config: r.basicUpdate(data),
 			Check: acceptance.ComposeTestCheckFunc(
 				check.That(data.ResourceName).ExistsInAzure(r),
 			),
 		},
-		data.ImportStep("language"),
+		data.ImportStep("language", "file"),
 	})
 }
 
@@ -58,7 +57,7 @@ func TestAccFunctionAppFunction_requiresImport(t *testing.T) {
 
 	data.ResourceTest(t, r, []acceptance.TestStep{
 		{
-			Config: r.basic(data),
+			Config: r.basicLinux(data),
 			Check: acceptance.ComposeTestCheckFunc(
 				check.That(data.ResourceName).ExistsInAzure(r),
 			),
@@ -67,7 +66,7 @@ func TestAccFunctionAppFunction_requiresImport(t *testing.T) {
 	})
 }
 
-func TestAccFunctionAppFunction_withFiles(t *testing.T) {
+func TestAccFunctionAppFunction_basicWindows(t *testing.T) {
 	data := acceptance.BuildTestData(t, "azurerm_function_app_function", "test")
 	r := FunctionAppFunctionResource{}
 
@@ -102,7 +101,7 @@ func (r FunctionAppFunctionResource) Exists(ctx context.Context, client *clients
 	return utils.Bool(true), nil
 }
 
-func (r FunctionAppFunctionResource) basic(data acceptance.TestData) string {
+func (r FunctionAppFunctionResource) basicLinux(data acceptance.TestData) string {
 	return fmt.Sprintf(`
 provider "azurerm" {
   features {}
@@ -114,9 +113,16 @@ resource "azurerm_function_app_function" "test" {
   name            = "testAcc-FnAppFn-%[2]d"
   function_app_id = azurerm_linux_function_app.test.id
   language        = "Python"
+
   test_data = jsonencode({
     "name" = "Azure"
   })
+
+  file {
+    name    = "__init__.py"
+    content = file("testdata/__init__.py")
+  }
+
   config_json = jsonencode({
     "bindings" = [
       {
@@ -128,6 +134,7 @@ resource "azurerm_function_app_function" "test" {
         ]
         "name" = "req"
         "type" = "httpTrigger"
+        "scriptFile" = "__init__.py",
       },
       {
         "direction" = "out"
@@ -152,9 +159,16 @@ resource "azurerm_function_app_function" "test" {
   name            = "testAcc-FnAppFn-%[2]d"
   function_app_id = azurerm_linux_function_app.test.id
   language        = "Python"
+
+  file {
+    name    = "__init__.py"
+    content = file("testdata/__init__.py")
+  }
+
   test_data = jsonencode({
     "name" = "AzureRM"
   })
+
   config_json = jsonencode({
     "bindings" = [
       {
@@ -209,6 +223,7 @@ resource "azurerm_function_app_function" "test" {
         ]
         "name" = "req"
         "type" = "httpTrigger"
+        "scriptFile" = "run.csx",
       },
       {
         "direction" = "out"
@@ -233,7 +248,7 @@ resource "azurerm_function_app_function" "import" {
   config_json     = azurerm_function_app_function.test.config_json
 }
 
-`, r.basic(data))
+`, r.basicLinux(data))
 }
 
 func (r FunctionAppFunctionResource) templateLinux(data acceptance.TestData) string {
