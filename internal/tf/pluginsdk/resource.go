@@ -34,3 +34,5 @@ type (
 	ReadFunc   = schema.ReadFunc   //nolint:staticcheck
 	UpdateFunc = schema.UpdateFunc //nolint:staticcheck
 )
+
+type NotFoundError resource.NotFoundError

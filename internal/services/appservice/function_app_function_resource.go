@@ -98,7 +98,7 @@ func (r FunctionAppFunctionResource) Arguments() map[string]*pluginsdk.Schema {
 				"Python",
 				"PowerShell",
 				"TypeScript",
-			}, false), // TODO - find the valida list of strings
+			}, false),
 			Description: "The language the Function is written in.",
 		},
 
@@ -233,25 +233,20 @@ func (r FunctionAppFunctionResource) Create() sdk.ResourceFunc {
 			}
 
 			createWait := &pluginsdk.StateChangeConf{
-				Pending: []string{"busy", "unknown"},
-				Target:  []string{"ready"},
-				Refresh: func() (result interface{}, state string, err error) {
-					function, err := client.Get(ctx, appId.ResourceGroup, appId.SiteName)
-					if err != nil || function.SiteConfig == nil {
-						return "unknown", "unknown", err
-					}
-					if function.SiteProperties.InProgressOperationID != nil {
-						return "busy", "busy", nil
-					}
-					return "ready", "ready", nil
-				},
+				Pending:                   []string{"busy"},
+				Target:                    []string{"ready"},
+				Refresh:                   waitForParentFunctionAppReady(ctx, client, &id),
 				MinTimeout:                30 * time.Second,
+				PollInterval:              10 * time.Second,
 				ContinuousTargetOccurence: 2,
+				NotFoundChecks:            3,
 				Timeout:                   time.Until(deadline),
 			}
 
-			if _, err = createWait.WaitForStateContext(ctx); err != nil {
-				return fmt.Errorf("waiting for %s to be ready", *appId)
+			if result, err := createWait.WaitForStateContext(ctx); err != nil {
+				if _, ok := result.(pluginsdk.NotFoundError); ok {
+					return fmt.Errorf("the Function App for %s was not found", id)
+				}
 			}
 
 			locks.ByID(appId.ID())
@@ -259,15 +254,21 @@ func (r FunctionAppFunctionResource) Create() sdk.ResourceFunc {
 
 			future, err := client.CreateFunction(ctx, id.ResourceGroup, id.SiteName, id.FunctionName, fnEnvelope)
 			if err != nil {
-				fn, err := client.Get(ctx, id.ResourceGroup, id.SiteName)
-				if err != nil {
-					return fmt.Errorf("reading parent %s: %+v", appId, err)
+				fn, errF := client.Get(ctx, appId.ResourceGroup, appId.SiteName)
+				if errF != nil || fn.SiteProperties == nil {
+					return fmt.Errorf("reading parent %s: %+v", appId, errF)
 				}
-				return fmt.Errorf("creating %s - State: %#v / InProgressOperationID: %#v", id, *fn.SiteProperties.State, fn.SiteProperties.InProgressOperationID)
+
+				return fmt.Errorf("creating %s (State: %#v / InProgressOperationID: %#v): %+v", id, *fn.SiteProperties.State, fn.SiteProperties.InProgressOperationID, err)
 			}
 
 			if err = future.WaitForCompletionRef(ctx, client.Client); err != nil {
 				return fmt.Errorf("waiting for %s: %+v", id, err)
+			}
+
+			_, err = client.SyncFunctions(ctx, id.ResourceGroup, id.SiteName)
+			if err != nil {
+				return fmt.Errorf("syncing functions: %+v", err)
 			}
 
 			metadata.SetID(id)
@@ -356,24 +357,21 @@ func (r FunctionAppFunctionResource) Delete() sdk.ResourceFunc {
 			}
 
 			deleteWait := &pluginsdk.StateChangeConf{
-				Pending: []string{"busy", "unknown"},
-				Target:  []string{"ready"},
-				Refresh: func() (result interface{}, state string, err error) {
-					function, err := client.Get(ctx, id.ResourceGroup, id.SiteName)
-					if err != nil || function.SiteConfig == nil {
-						return "unknown", "unknown", err
-					}
-					if function.SiteProperties.InProgressOperationID != nil {
-						return "busy", "busy", nil
-					}
-					return "ready", "ready", nil
-				},
+				Pending:                   []string{"busy"},
+				Target:                    []string{"ready"},
+				Refresh:                   waitForParentFunctionAppReady(ctx, client, id),
 				MinTimeout:                30 * time.Second,
+				PollInterval:              10 * time.Second,
 				ContinuousTargetOccurence: 2,
+				NotFoundChecks:            2,
 				Timeout:                   time.Until(deadline),
 			}
 
-			if _, err = deleteWait.WaitForStateContext(ctx); err != nil {
+			if result, err := deleteWait.WaitForStateContext(ctx); err != nil {
+				if _, ok := result.(pluginsdk.NotFoundError); ok {
+					metadata.Logger.Infof("Parent for %s not found, removing from state", *id)
+					return nil
+				}
 				return fmt.Errorf("waiting for %s to be settled", *id)
 			}
 
@@ -381,7 +379,10 @@ func (r FunctionAppFunctionResource) Delete() sdk.ResourceFunc {
 			locks.ByID(fnID)
 			defer locks.UnlockByID(fnID)
 
-			if _, err = client.DeleteFunction(ctx, id.ResourceGroup, id.SiteName, id.FunctionName); err != nil {
+			if resp, err := client.DeleteFunction(ctx, id.ResourceGroup, id.SiteName, id.FunctionName); err != nil {
+				if utils.ResponseWasNotFound(resp) {
+					return nil
+				}
 				return fmt.Errorf("deleting %s: %+v", *id, err)
 			}
 
@@ -434,24 +435,20 @@ func (r FunctionAppFunctionResource) Update() sdk.ResourceFunc {
 			}
 
 			updateWait := &pluginsdk.StateChangeConf{
-				Pending: []string{"busy", "unknown"},
-				Target:  []string{"ready"},
-				Refresh: func() (result interface{}, state string, err error) {
-					function, err := client.Get(ctx, id.ResourceGroup, id.SiteName)
-					if err != nil || function.SiteConfig == nil {
-						return "unknown", "unknown", err
-					}
-					if function.SiteProperties.InProgressOperationID != nil {
-						return "busy", "busy", nil
-					}
-					return "ready", "ready", nil
-				},
+				Pending:                   []string{"busy"},
+				Target:                    []string{"ready"},
+				Refresh:                   waitForParentFunctionAppReady(ctx, client, id),
 				MinTimeout:                30 * time.Second,
+				PollInterval:              10 * time.Second,
 				ContinuousTargetOccurence: 2,
+				NotFoundChecks:            3,
 				Timeout:                   time.Until(deadline),
 			}
 
-			if _, err = updateWait.WaitForStateContext(ctx); err != nil {
+			if result, err := updateWait.WaitForStateContext(ctx); err != nil {
+				if _, ok := result.(pluginsdk.NotFoundError); ok {
+					return fmt.Errorf("the Function App for %s was not found", *id)
+				}
 				return fmt.Errorf("waiting for %s to be ready", *id)
 			}
 
@@ -496,4 +493,23 @@ func flattenFunctionFiles(input interface{}) (*string, error) {
 	}
 	result := string(raw)
 	return &result, nil
+}
+
+func waitForParentFunctionAppReady(ctx context.Context, client *web.AppsClient, id *parse.FunctionAppFunctionId) pluginsdk.StateRefreshFunc {
+	return func() (interface{}, string, error) {
+		function, err := client.Get(ctx, id.ResourceGroup, id.SiteName)
+		if err != nil || function.SiteConfig == nil {
+			return nil, "", err
+		}
+
+		if function.SiteProperties == nil {
+			return nil, "", err
+		}
+
+		if function.SiteProperties.InProgressOperationID != nil {
+			return "busy", "busy", nil
+		}
+
+		return "ready", "ready", nil
+	}
 }
