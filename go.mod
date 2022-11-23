@@ -87,4 +87,6 @@ require (
 	google.golang.org/protobuf v1.28.1 // indirect
 )
 
+replace github.com/hashicorp/go-azure-sdk => /Users/steph/Projects/hashicorp/tf/azure/go-azure-sdk
+
 go 1.19
