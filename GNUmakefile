@@ -143,6 +143,9 @@ schemagen:
 resource-counts:
 	go test -v ./internal/provider -run=TestProvider_counts
 
+build-framework: fmtcheck generate
+	go install -tags framework
+
 pr-check: generate build test lint tflint website-lint
 
 .PHONY: build test testacc vet fmt fmtcheck errcheck pr-check scaffold-website test-compile website website-test validate-examples resource-counts
