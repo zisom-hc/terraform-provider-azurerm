@@ -926,9 +926,7 @@ func (m SoftwareUpdateConfigurationResource) Create() sdk.ResourceFunc {
 				if err != nil {
 					return fmt.Errorf("retreiving %s: %v", id, err)
 				}
-				if meta.ResourceData.IsNewResource() {
-					return meta.ResourceRequiresImport(m.ResourceType(), id)
-				}
+				return meta.ResourceRequiresImport(m.ResourceType(), id)
 			}
 
 			param := model.ToSDKModel()

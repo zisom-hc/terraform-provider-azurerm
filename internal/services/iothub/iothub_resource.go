@@ -53,18 +53,6 @@ func suppressIfTypeIs(t string) pluginsdk.SchemaDiffSuppressFunc {
 	}
 }
 
-// nolint unparam
-func suppressWhenAny(fs ...pluginsdk.SchemaDiffSuppressFunc) pluginsdk.SchemaDiffSuppressFunc {
-	return func(k, old, new string, d *pluginsdk.ResourceData) bool {
-		for _, f := range fs {
-			if f(k, old, new, d) {
-				return true
-			}
-		}
-		return false
-	}
-}
-
 func resourceIotHub() *pluginsdk.Resource {
 	return &pluginsdk.Resource{
 		Create: resourceIotHubCreateUpdate,
