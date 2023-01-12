@@ -5,11 +5,23 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/resourcemanager/resourceids"
+	resourceSchema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-provider-azurerm/helpers/tf"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/clients"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/tf/pluginsdk"
 )
+
+// resourceWithFrameworkSchema defines the Arguments and Attributes for this resource
+// using the types defined in Plugin Framework
+type resourceWithFrameworkSchema interface {
+	// Arguments is a list of user-configurable (that is: Required, Optional, or Optional and Computed)
+	// arguments for this Resource
+	Arguments() map[string]*resourceSchema.Schema
+
+	// Attributes is a list of read-only (e.g. Computed-only) attributes
+	Attributes() map[string]*resourceSchema.Schema
+}
 
 // resourceWithPluginSdkSchema defines the Arguments and Attributes for this resource
 // using the types defined in Plugin SDKv2
@@ -71,6 +83,25 @@ type Resource interface {
 	// IDValidationFunc returns the SchemaValidateFunc used to validate the ID is valid during
 	// `terraform import` - ensuring users don't inadvertently specify the incorrect Resource ID
 	IDValidationFunc() pluginsdk.SchemaValidateFunc
+}
+
+type ResourceMetaData struct {
+	// Client is a reference to the Azure Providers Client - providing a typed reference to this object
+	Client *clients.Client
+
+	// Logger provides a logger for debug purposes
+	Logger Logger
+
+	// ResourceData is a reference to the ResourceData object from Terraform's Plugin SDK
+	// This is used to be able to call operations directly should Encode/Decode be insufficient
+	// for example, to determine if a field has changes
+	ResourceData ResourceData
+
+	// ResourceDiff is a reference to the ResourceDiff object from Terraform's Plugin SDK
+	ResourceDiff *schema.ResourceDiff
+
+	// serializationDebugLogger is used for testing purposes
+	serializationDebugLogger Logger
 }
 
 type ResourceWithStateMigration interface {
@@ -155,25 +186,6 @@ type ResourceFunc struct {
 	// Timeout is the default timeout, which can be overridden by users
 	// for this method - in-turn used for the Azure API
 	Timeout time.Duration
-}
-
-type ResourceMetaData struct {
-	// Client is a reference to the Azure Providers Client - providing a typed reference to this object
-	Client *clients.Client
-
-	// Logger provides a logger for debug purposes
-	Logger Logger
-
-	// ResourceData is a reference to the ResourceData object from Terraform's Plugin SDK
-	// This is used to be able to call operations directly should Encode/Decode be insufficient
-	// for example, to determine if a field has changes
-	ResourceData *schema.ResourceData
-
-	// ResourceDiff is a reference to the ResourceDiff object from Terraform's Plugin SDK
-	ResourceDiff *schema.ResourceDiff
-
-	// serializationDebugLogger is used for testing purposes
-	serializationDebugLogger Logger
 }
 
 // MarkAsGone marks this resource as removed in the Remote API, so this is no longer available

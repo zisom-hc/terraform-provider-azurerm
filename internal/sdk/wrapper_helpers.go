@@ -1,3 +1,6 @@
+//go:build !framework
+// +build !framework
+
 package sdk
 
 import (
@@ -49,7 +52,7 @@ func runArgs(d *schema.ResourceData, meta interface{}, logger Logger) ResourceMe
 	metaData := ResourceMetaData{
 		Client:                   client,
 		Logger:                   logger,
-		ResourceData:             d,
+		ResourceData:             NewPluginSdkResourceData(d),
 		serializationDebugLogger: NullLogger{},
 	}
 

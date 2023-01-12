@@ -1,3 +1,5 @@
+//go:build !framework
+
 package sdk
 
 import (

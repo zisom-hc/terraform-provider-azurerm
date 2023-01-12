@@ -1,3 +1,6 @@
+//go:build !framework
+// +build !framework
+
 package sdk
 
 import (
@@ -180,7 +183,7 @@ func TestAccPluginSDKAndDecoder(t *testing.T) {
 							},
 							Read: func(d *schema.ResourceData, _ interface{}) error { //nolint:staticcheck
 								wrapper := ResourceMetaData{
-									ResourceData:             d,
+									ResourceData:             NewPluginSdkResourceData(d),
 									Logger:                   ConsoleLogger{},
 									serializationDebugLogger: ConsoleLogger{},
 								}
@@ -242,7 +245,7 @@ func TestAccPluginSDKAndDecoderOptionalComputed(t *testing.T) {
 	readFunc := func(expected MyType) func(*schema.ResourceData, interface{}) error {
 		return func(d *schema.ResourceData, _ interface{}) error {
 			wrapper := ResourceMetaData{
-				ResourceData:             d,
+				ResourceData:             NewPluginSdkResourceData(d),
 				Logger:                   ConsoleLogger{},
 				serializationDebugLogger: ConsoleLogger{},
 			}
@@ -380,7 +383,7 @@ func TestAccPluginSDKAndDecoderOptionalComputedOverride(t *testing.T) {
 							},
 							Read: func(d *schema.ResourceData, _ interface{}) error {
 								wrapper := ResourceMetaData{
-									ResourceData:             d,
+									ResourceData:             NewPluginSdkResourceData(d),
 									Logger:                   ConsoleLogger{},
 									serializationDebugLogger: ConsoleLogger{},
 								}
@@ -512,7 +515,7 @@ func TestAccPluginSDKAndDecoderSets(t *testing.T) {
 							},
 							Read: func(d *schema.ResourceData, _ interface{}) error {
 								wrapper := ResourceMetaData{
-									ResourceData:             d,
+									ResourceData:             NewPluginSdkResourceData(d),
 									Logger:                   ConsoleLogger{},
 									serializationDebugLogger: ConsoleLogger{},
 								}
@@ -765,7 +768,7 @@ func TestAccPluginSDKAndEncoder(t *testing.T) {
 							},
 							Create: func(d *schema.ResourceData, i interface{}) error { //nolint:staticcheck
 								wrapper := ResourceMetaData{
-									ResourceData:             d,
+									ResourceData:             NewPluginSdkResourceData(d),
 									Logger:                   ConsoleLogger{},
 									serializationDebugLogger: ConsoleLogger{},
 								}

@@ -3,7 +3,7 @@ package tags
 import (
 	"fmt"
 
-	"github.com/hashicorp/terraform-provider-azurerm/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azurerm/internal/tf/shim"
 )
 
 func Flatten(tagMap map[string]*string) map[string]interface{} {
@@ -21,7 +21,7 @@ func Flatten(tagMap map[string]*string) map[string]interface{} {
 	return output
 }
 
-func FlattenAndSet(d *pluginsdk.ResourceData, tagMap map[string]*string) error {
+func FlattenAndSet(d shim.SetsValues, tagMap map[string]*string) error {
 	flattened := Flatten(tagMap)
 	if err := d.Set("tags", flattened); err != nil {
 		return fmt.Errorf("setting `tags`: %s", err)

@@ -1,3 +1,6 @@
+//go:build !framework
+// +build !framework
+
 package sdk
 
 import (
@@ -43,6 +46,8 @@ func (rw *ResourceWrapper) Resource() (*schema.Resource, error) {
 	d := func(duration time.Duration) *time.Duration {
 		return &duration
 	}
+
+	// TODO: we should handle Panic's better here
 
 	resource := schema.Resource{
 		Schema: *resourceSchema,
@@ -100,7 +105,12 @@ func (rw *ResourceWrapper) Resource() (*schema.Resource, error) {
 					return nil, err
 				}
 
-				return []*pluginsdk.ResourceData{metaData.ResourceData}, nil
+				rs, ok := metaData.ResourceData.(*PluginSdkResourceData)
+				if !ok {
+					return nil, fmt.Errorf("internal-error: ResourceData was not a *PluginSdkResourceData - got %+v", metaData.ResourceData)
+				}
+
+				return []*pluginsdk.ResourceData{rs.resourceData}, nil
 			}
 
 			return schema.ImportStatePassthroughContext(ctx, d, meta)

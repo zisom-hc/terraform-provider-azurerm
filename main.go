@@ -1,12 +1,8 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"log"
-
-	"github.com/hashicorp/terraform-plugin-sdk/v2/plugin"
-	"github.com/hashicorp/terraform-provider-azurerm/internal/provider"
 )
 
 func main() {
@@ -18,18 +14,5 @@ func main() {
 	flag.BoolVar(&debugMode, "debuggable", false, "set to true to run the provider with support for debuggers like delve")
 	flag.Parse()
 
-	if debugMode {
-		//nolint:staticcheck
-		err := plugin.Debug(context.Background(), "registry.terraform.io/hashicorp/azurerm",
-			&plugin.ServeOpts{
-				ProviderFunc: provider.AzureProvider,
-			})
-		if err != nil {
-			log.Println(err.Error())
-		}
-	} else {
-		plugin.Serve(&plugin.ServeOpts{
-			ProviderFunc: provider.AzureProvider,
-		})
-	}
+	launchProvider(debugMode)
 }
