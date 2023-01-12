@@ -970,7 +970,7 @@ func expandSku(input []Sku) lab.Sku {
 	return result
 }
 
-func flattenVirtualMachineProfile(input *lab.VirtualMachineProfile, d *pluginsdk.ResourceData) []VirtualMachine {
+func flattenVirtualMachineProfile(input *lab.VirtualMachineProfile, d sdk.ResourceData) []VirtualMachine {
 	if input == nil {
 		return nil
 	}
