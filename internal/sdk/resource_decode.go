@@ -139,6 +139,16 @@ func setValue(input, tfschemaValue interface{}, index int, fieldName string, deb
 		return nil
 	}
 
+	if mapConfig, ok := tfschemaValue.(map[string]string); ok {
+		mapOutput := reflect.MakeMap(reflect.ValueOf(input).Elem().Field(index).Type())
+		for key, val := range mapConfig {
+			mapOutput.SetMapIndex(reflect.ValueOf(key), reflect.ValueOf(val))
+		}
+
+		reflect.ValueOf(input).Elem().Field(index).Set(mapOutput)
+		return nil
+	}
+
 	if v, ok := tfschemaValue.([]interface{}); ok {
 		return setListValue(input, index, fieldName, v, debugLogger)
 	}
