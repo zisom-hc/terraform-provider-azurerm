@@ -62,7 +62,7 @@ type SiteConfigLinuxFunctionApp struct {
 func SiteConfigSchemaLinuxFunctionApp() *pluginsdk.Schema {
 	return &pluginsdk.Schema{
 		Type:     pluginsdk.TypeList,
-		Required: true,
+		Optional: true,
 		MaxItems: 1,
 		Elem: &pluginsdk.Resource{
 			Schema: map[string]*pluginsdk.Schema{
@@ -1477,9 +1477,162 @@ func FunctionAppAppServiceLogsSchemaComputed() *pluginsdk.Schema {
 	}
 }
 
-func ExpandSiteConfigLinuxFunctionApp(siteConfig []SiteConfigLinuxFunctionApp, existing *web.SiteConfig, metadata sdk.ResourceMetaData, version string, storageString string, storageUsesMSI bool) (*web.SiteConfig, error) {
-	if len(siteConfig) == 0 {
-		return nil, nil
+func ExpandSiteConfigLinuxFunctionAppForCreate(siteConfig []SiteConfigLinuxFunctionApp, metadata sdk.ResourceMetaData, version string, storageString string, storageUsesMSI bool) (*web.SiteConfig, error) {
+	var linuxSiteConfig SiteConfigLinuxFunctionApp
+	if len(siteConfig) == 1 {
+		linuxSiteConfig = siteConfig[0]
+	}
+
+	expanded := &web.SiteConfig{
+		AlwaysOn:                               pointer.To(linuxSiteConfig.AlwaysOn),
+		FunctionAppScaleLimit:                  pointer.To(int32(linuxSiteConfig.AppScaleLimit)),
+		AppCommandLine:                         pointer.To(linuxSiteConfig.AppCommandLine),
+		AcrUseManagedIdentityCreds:             pointer.To(linuxSiteConfig.UseManagedIdentityACR),
+		VnetRouteAllEnabled:                    pointer.To(linuxSiteConfig.VnetRouteAllEnabled),
+		AcrUserManagedIdentityID:               pointer.To(linuxSiteConfig.ContainerRegistryMSI),
+		DefaultDocuments:                       pointer.To(linuxSiteConfig.DefaultDocuments),
+		HTTP20Enabled:                          pointer.To(linuxSiteConfig.Http2Enabled),
+		ScmIPSecurityRestrictionsUseMain:       pointer.To(linuxSiteConfig.ScmUseMainIpRestriction),
+		LoadBalancing:                          web.SiteLoadBalancing(linuxSiteConfig.LoadBalancing),
+		ManagedPipelineMode:                    web.ManagedPipelineMode(linuxSiteConfig.ManagedPipelineMode),
+		RemoteDebuggingEnabled:                 pointer.To(linuxSiteConfig.RemoteDebugging),
+		RemoteDebuggingVersion:                 pointer.To(linuxSiteConfig.RemoteDebuggingVersion),
+		Use32BitWorkerProcess:                  pointer.To(linuxSiteConfig.Use32BitWorker),
+		WebSocketsEnabled:                      pointer.To(linuxSiteConfig.WebSockets),
+		FtpsState:                              web.FtpsState(linuxSiteConfig.FtpsState),
+		HealthCheckPath:                        pointer.To(linuxSiteConfig.HealthCheckPath),
+		NumberOfWorkers:                        pointer.To(int32(linuxSiteConfig.WorkerCount)), // Should we always send this?
+		MinTLSVersion:                          web.SupportedTLSVersions(linuxSiteConfig.MinTlsVersion),
+		ScmMinTLSVersion:                       web.SupportedTLSVersions(linuxSiteConfig.ScmMinTlsVersion),
+		Cors:                                   ExpandCorsSettings(linuxSiteConfig.Cors),
+		PreWarmedInstanceCount:                 pointer.To(int32(linuxSiteConfig.PreWarmedInstanceCount)),
+		MinimumElasticInstanceCount:            pointer.To(int32(linuxSiteConfig.ElasticInstanceMinimum)),
+		FunctionsRuntimeScaleMonitoringEnabled: pointer.To(linuxSiteConfig.RuntimeScaleMonitoring),
+	}
+
+	if linuxSiteConfig.ApiManagementConfigId != "" {
+		expanded.APIManagementConfig = &web.APIManagementConfig{
+			ID: utils.String(linuxSiteConfig.ApiManagementConfigId),
+		}
+	}
+
+	if linuxSiteConfig.ApiDefinition != "" {
+		expanded.APIDefinition = &web.APIDefinitionInfo{
+			URL: utils.String(linuxSiteConfig.ApiDefinition),
+		}
+	}
+
+	appSettings := make([]web.NameValuePair, 0)
+
+	appSettings = updateOrAppendAppSettings(appSettings, "FUNCTIONS_EXTENSION_VERSION", version, false)
+
+	if storageUsesMSI {
+		appSettings = updateOrAppendAppSettings(appSettings, "AzureWebJobsStorage__accountName", storageString, false)
+	} else {
+		appSettings = updateOrAppendAppSettings(appSettings, "AzureWebJobsStorage", storageString, false)
+	}
+
+	if metadata.ResourceData.HasChange("site_config.0.health_check_path") {
+		if linuxSiteConfig.HealthCheckPath != "" && metadata.ResourceData.HasChange("site_config.0.health_check_eviction_time_in_min") {
+			v := strconv.Itoa(linuxSiteConfig.HealthCheckEvictionTime)
+			if v == "0" {
+				appSettings = updateOrAppendAppSettings(appSettings, "WEBSITE_HEALTHCHECK_MAXPINGFAILURES", v, true)
+			} else {
+				appSettings = updateOrAppendAppSettings(appSettings, "WEBSITE_HEALTHCHECK_MAXPINGFAILURES", v, false)
+			}
+		}
+	}
+
+	if linuxSiteConfig.AppInsightsConnectionString == "" {
+		appSettings = updateOrAppendAppSettings(appSettings, "APPLICATIONINSIGHTS_CONNECTION_STRING", linuxSiteConfig.AppInsightsConnectionString, true)
+	} else {
+		appSettings = updateOrAppendAppSettings(appSettings, "APPLICATIONINSIGHTS_CONNECTION_STRING", linuxSiteConfig.AppInsightsConnectionString, false)
+	}
+
+	if linuxSiteConfig.AppInsightsInstrumentationKey == "" {
+		appSettings = updateOrAppendAppSettings(appSettings, "APPINSIGHTS_INSTRUMENTATIONKEY", linuxSiteConfig.AppInsightsInstrumentationKey, true)
+	} else {
+		appSettings = updateOrAppendAppSettings(appSettings, "APPINSIGHTS_INSTRUMENTATIONKEY", linuxSiteConfig.AppInsightsInstrumentationKey, false)
+	}
+
+	if len(linuxSiteConfig.ApplicationStack) > 0 {
+		linuxAppStack := linuxSiteConfig.ApplicationStack[0]
+		if linuxAppStack.DotNetVersion != "" {
+			if linuxAppStack.DotNetIsolated {
+				appSettings = updateOrAppendAppSettings(appSettings, "FUNCTIONS_WORKER_RUNTIME", "dotnet-isolated", false)
+				expanded.LinuxFxVersion = pointer.To(fmt.Sprintf("DOTNET-ISOLATED|%s", linuxAppStack.DotNetVersion))
+			} else {
+				appSettings = updateOrAppendAppSettings(appSettings, "FUNCTIONS_WORKER_RUNTIME", "dotnet", false)
+				expanded.LinuxFxVersion = pointer.To(fmt.Sprintf("DOTNET|%s", linuxAppStack.DotNetVersion))
+			}
+		}
+
+		if linuxAppStack.NodeVersion != "" {
+			appSettings = updateOrAppendAppSettings(appSettings, "FUNCTIONS_WORKER_RUNTIME", "node", false)
+			appSettings = updateOrAppendAppSettings(appSettings, "WEBSITE_NODE_DEFAULT_VERSION", linuxAppStack.NodeVersion, false)
+			expanded.LinuxFxVersion = pointer.To(fmt.Sprintf("NODE|%s", linuxAppStack.NodeVersion))
+		}
+
+		if linuxAppStack.PythonVersion != "" {
+			appSettings = updateOrAppendAppSettings(appSettings, "FUNCTIONS_WORKER_RUNTIME", "python", false)
+			expanded.LinuxFxVersion = pointer.To(fmt.Sprintf("PYTHON|%s", linuxAppStack.PythonVersion))
+		}
+
+		if linuxAppStack.JavaVersion != "" {
+			appSettings = updateOrAppendAppSettings(appSettings, "FUNCTIONS_WORKER_RUNTIME", "java", false)
+			expanded.LinuxFxVersion = pointer.To(fmt.Sprintf("JAVA|%s", linuxAppStack.JavaVersion))
+		}
+
+		if linuxAppStack.PowerShellCoreVersion != "" {
+			appSettings = updateOrAppendAppSettings(appSettings, "FUNCTIONS_WORKER_RUNTIME", "powershell", false)
+			expanded.LinuxFxVersion = pointer.To(fmt.Sprintf("POWERSHELL|%s", linuxAppStack.PowerShellCoreVersion))
+		}
+
+		if linuxAppStack.CustomHandler {
+			appSettings = updateOrAppendAppSettings(appSettings, "FUNCTIONS_WORKER_RUNTIME", "custom", false)
+			expanded.LinuxFxVersion = pointer.To("") // Custom needs an explicit empty string here
+		}
+
+		if linuxAppStack.Docker != nil && len(linuxAppStack.Docker) == 1 {
+			dockerConfig := linuxAppStack.Docker[0]
+			appSettings = updateOrAppendAppSettings(appSettings, "DOCKER_REGISTRY_SERVER_URL", dockerConfig.RegistryURL, false)
+			appSettings = updateOrAppendAppSettings(appSettings, "DOCKER_REGISTRY_SERVER_USERNAME", dockerConfig.RegistryUsername, false)
+			appSettings = updateOrAppendAppSettings(appSettings, "DOCKER_REGISTRY_SERVER_PASSWORD", dockerConfig.RegistryPassword, false)
+			var dockerUrl string
+			for _, prefix := range urlSchemes {
+				if strings.HasPrefix(dockerConfig.RegistryURL, prefix) {
+					dockerUrl = strings.TrimPrefix(dockerConfig.RegistryURL, prefix)
+					continue
+				}
+			}
+			expanded.LinuxFxVersion = utils.String(fmt.Sprintf("DOCKER|%s/%s:%s", dockerUrl, dockerConfig.ImageName, dockerConfig.ImageTag))
+		}
+	} else {
+		appSettings = updateOrAppendAppSettings(appSettings, "FUNCTIONS_WORKER_RUNTIME", "", true)
+		expanded.LinuxFxVersion = pointer.To("")
+	}
+
+	ipRestrictions, err := ExpandIpRestrictions(linuxSiteConfig.IpRestriction)
+	if err != nil {
+		return nil, err
+	}
+	expanded.IPSecurityRestrictions = ipRestrictions
+
+	scmIpRestrictions, err := ExpandIpRestrictions(linuxSiteConfig.ScmIpRestriction)
+	if err != nil {
+		return nil, err
+	}
+	expanded.ScmIPSecurityRestrictions = scmIpRestrictions
+
+	expanded.AppSettings = &appSettings
+
+	return expanded, nil
+}
+
+func ExpandSiteConfigLinuxFunctionAppForUpdate(siteConfig []SiteConfigLinuxFunctionApp, existing *web.SiteConfig, metadata sdk.ResourceMetaData, version string, storageString string, storageUsesMSI bool) (*web.SiteConfig, error) {
+	var linuxSiteConfig SiteConfigLinuxFunctionApp
+	if len(siteConfig) == 1 {
+		linuxSiteConfig = siteConfig[0]
 	}
 
 	expanded := &web.SiteConfig{}
@@ -1502,8 +1655,6 @@ func ExpandSiteConfigLinuxFunctionApp(siteConfig []SiteConfigLinuxFunctionApp, e
 	} else {
 		appSettings = updateOrAppendAppSettings(appSettings, "AzureWebJobsStorage", storageString, false)
 	}
-
-	linuxSiteConfig := siteConfig[0]
 
 	if metadata.ResourceData.HasChange("site_config.0.health_check_path") {
 		if linuxSiteConfig.HealthCheckPath != "" && metadata.ResourceData.HasChange("site_config.0.health_check_eviction_time_in_min") {
@@ -1745,7 +1896,7 @@ func updateOrAppendAppSettings(input []web.NameValuePair, name string, value str
 
 func ExpandSiteConfigWindowsFunctionApp(siteConfig []SiteConfigWindowsFunctionApp, existing *web.SiteConfig, metadata sdk.ResourceMetaData, version string, storageString string, storageUsesMSI bool) (*web.SiteConfig, error) {
 	if len(siteConfig) == 0 {
-		return nil, nil
+		return &web.SiteConfig{}, nil
 	}
 
 	expanded := &web.SiteConfig{}
@@ -1951,12 +2102,12 @@ func ExpandSiteConfigWindowsFunctionApp(siteConfig []SiteConfigWindowsFunctionAp
 	return expanded, nil
 }
 
-func FlattenSiteConfigLinuxFunctionApp(functionAppSiteConfig *web.SiteConfig) (*SiteConfigLinuxFunctionApp, error) {
+func FlattenSiteConfigLinuxFunctionApp(functionAppSiteConfig *web.SiteConfig) []SiteConfigLinuxFunctionApp {
 	if functionAppSiteConfig == nil {
-		return nil, fmt.Errorf("flattening site config: SiteConfig was nil")
+		return []SiteConfigLinuxFunctionApp{}
 	}
 
-	result := &SiteConfigLinuxFunctionApp{
+	result := SiteConfigLinuxFunctionApp{
 		AlwaysOn:                utils.NormaliseNilableBool(functionAppSiteConfig.AlwaysOn),
 		AppCommandLine:          utils.NormalizeNilableString(functionAppSiteConfig.AppCommandLine),
 		AppScaleLimit:           int(utils.NormaliseNilableInt32(functionAppSiteConfig.FunctionAppScaleLimit)),
@@ -1982,6 +2133,8 @@ func FlattenSiteConfigLinuxFunctionApp(functionAppSiteConfig *web.SiteConfig) (*
 		RemoteDebugging:         utils.NormaliseNilableBool(functionAppSiteConfig.RemoteDebuggingEnabled),
 		RemoteDebuggingVersion:  strings.ToUpper(utils.NormalizeNilableString(functionAppSiteConfig.RemoteDebuggingVersion)),
 		VnetRouteAllEnabled:     utils.NormaliseNilableBool(functionAppSiteConfig.VnetRouteAllEnabled),
+		IpRestriction:           FlattenIpRestrictions(functionAppSiteConfig.IPSecurityRestrictions),
+		ScmIpRestriction:        FlattenIpRestrictions(functionAppSiteConfig.ScmIPSecurityRestrictions),
 	}
 
 	if v := functionAppSiteConfig.APIDefinition; v != nil && v.URL != nil {
@@ -1992,49 +2145,25 @@ func FlattenSiteConfigLinuxFunctionApp(functionAppSiteConfig *web.SiteConfig) (*
 		result.ApiManagementConfigId = *v.ID
 	}
 
-	if functionAppSiteConfig.IPSecurityRestrictions != nil {
-		result.IpRestriction = FlattenIpRestrictions(functionAppSiteConfig.IPSecurityRestrictions)
-	}
-
-	if functionAppSiteConfig.ScmIPSecurityRestrictions != nil {
-		result.ScmIpRestriction = FlattenIpRestrictions(functionAppSiteConfig.ScmIPSecurityRestrictions)
-	}
-
 	if v := functionAppSiteConfig.DefaultDocuments; v != nil {
 		result.DefaultDocuments = *v
 	}
 
 	if functionAppSiteConfig.Cors != nil {
-		corsEmpty := false
 		corsSettings := functionAppSiteConfig.Cors
-		cors := CorsSetting{}
-		if corsSettings.SupportCredentials != nil {
-			cors.SupportCredentials = *corsSettings.SupportCredentials
-		}
-
-		if corsSettings.AllowedOrigins != nil {
-			if len(*corsSettings.AllowedOrigins) > 0 {
-				cors.AllowedOrigins = *corsSettings.AllowedOrigins
-			} else if !cors.SupportCredentials {
-				corsEmpty = true
-			}
-		}
-		if !corsEmpty {
-			result.Cors = []CorsSetting{cors}
-		}
+		result.Cors = []CorsSetting{{
+			AllowedOrigins:     pointer.From(corsSettings.AllowedOrigins),
+			SupportCredentials: pointer.From(corsSettings.SupportCredentials),
+		}}
 	}
 
 	var appStack []ApplicationStackLinuxFunctionApp
 	if functionAppSiteConfig.LinuxFxVersion != nil {
-		decoded, err := DecodeFunctionAppLinuxFxVersion(*functionAppSiteConfig.LinuxFxVersion)
-		if err != nil {
-			return nil, fmt.Errorf("flattening site config: %s", err)
-		}
-		appStack = decoded
+		appStack = DecodeFunctionAppLinuxFxVersion(*functionAppSiteConfig.LinuxFxVersion)
 	}
 	result.ApplicationStack = appStack
 
-	return result, nil
+	return []SiteConfigLinuxFunctionApp{result}
 }
 
 func FlattenSiteConfigWindowsFunctionApp(functionAppSiteConfig *web.SiteConfig) (*SiteConfigWindowsFunctionApp, error) {
@@ -2151,7 +2280,7 @@ func MergeUserAppSettings(systemSettings *[]web.NameValuePair, userSettings map[
 	if len(userSettings) == 0 {
 		return systemSettings
 	}
-	combined := *systemSettings
+	combined := pointer.From(systemSettings)
 	for k, v := range userSettings {
 		// Dedupe, explicit user settings take priority over enumerated, e.g. specifying KeyVault for `AzureWebJobsStorage`
 		for i, x := range combined {

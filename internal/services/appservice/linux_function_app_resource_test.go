@@ -1647,8 +1647,6 @@ resource "azurerm_linux_function_app" "test" {
   storage_account_access_key = azurerm_storage_account.test.primary_access_key
 
   builtin_logging_enabled = %t
-
-  site_config {}
 }
 `, r.template(data, planSku), data.RandomInteger, builtInLogging)
 }
@@ -2601,6 +2599,7 @@ resource "azurerm_linux_function_app" "test" {
       allowed_origins = [
         "https://www.contoso.com",
         "www.contoso.com",
+        "example.com",
       ]
 
       support_credentials = true

@@ -135,49 +135,46 @@ func EncodeFunctionAppLinuxFxVersion(input []ApplicationStackLinuxFunctionApp) *
 	return utils.String(fmt.Sprintf("%s|%s", appType, appString))
 }
 
-func DecodeFunctionAppLinuxFxVersion(input string) ([]ApplicationStackLinuxFunctionApp, error) {
+func DecodeFunctionAppLinuxFxVersion(input string) []ApplicationStackLinuxFunctionApp {
 	if input == "" {
 		// This is a valid string for "Custom" stack which we picked up earlier, so we can skip here
-		return nil, nil
-	}
-
-	parts := strings.Split(input, "|")
-	if len(parts) != 2 {
-		return nil, fmt.Errorf("unrecognised LinuxFxVersion format received, got %s", input)
+		return []ApplicationStackLinuxFunctionApp{}
 	}
 
 	result := make([]ApplicationStackLinuxFunctionApp, 0)
+	parts := strings.Split(input, "|")
+	if len(parts) == 2 {
+		switch strings.ToLower(parts[0]) {
+		case "dotnet":
+			appStack := ApplicationStackLinuxFunctionApp{DotNetVersion: parts[1]}
+			result = append(result, appStack)
 
-	switch strings.ToLower(parts[0]) {
-	case "dotnet":
-		appStack := ApplicationStackLinuxFunctionApp{DotNetVersion: parts[1]}
-		result = append(result, appStack)
+		case "dotnet-isolated":
+			appStack := ApplicationStackLinuxFunctionApp{DotNetVersion: parts[1], DotNetIsolated: true}
+			result = append(result, appStack)
 
-	case "dotnet-isolated":
-		appStack := ApplicationStackLinuxFunctionApp{DotNetVersion: parts[1], DotNetIsolated: true}
-		result = append(result, appStack)
+		case "node":
+			appStack := ApplicationStackLinuxFunctionApp{NodeVersion: parts[1]}
+			result = append(result, appStack)
 
-	case "node":
-		appStack := ApplicationStackLinuxFunctionApp{NodeVersion: parts[1]}
-		result = append(result, appStack)
+		case "python":
+			appStack := ApplicationStackLinuxFunctionApp{PythonVersion: parts[1]}
+			result = append(result, appStack)
 
-	case "python":
-		appStack := ApplicationStackLinuxFunctionApp{PythonVersion: parts[1]}
-		result = append(result, appStack)
+		case "java":
+			appStack := ApplicationStackLinuxFunctionApp{JavaVersion: parts[1]}
+			result = append(result, appStack)
 
-	case "java":
-		appStack := ApplicationStackLinuxFunctionApp{JavaVersion: parts[1]}
-		result = append(result, appStack)
+		case "powershell":
+			appStack := ApplicationStackLinuxFunctionApp{PowerShellCoreVersion: parts[1]}
+			result = append(result, appStack)
 
-	case "powershell":
-		appStack := ApplicationStackLinuxFunctionApp{PowerShellCoreVersion: parts[1]}
-		result = append(result, appStack)
-
-	case "docker":
-		// This is handled as part of unpacking the app_settings using DecodeFunctionAppDockerFxString but included here for signposting as this is not intuitive.
+		case "docker":
+			// This is handled as part of unpacking the app_settings using DecodeFunctionAppDockerFxString but included here for signposting as this is not intuitive.
+		}
 	}
 
-	return result, nil
+	return result
 }
 
 func DecodeFunctionAppDockerFxString(input string, partial ApplicationStackDocker) ([]ApplicationStackDocker, error) {

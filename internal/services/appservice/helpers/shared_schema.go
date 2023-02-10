@@ -50,7 +50,6 @@ func IpRestrictionSchema() *pluginsdk.Schema {
 	return &pluginsdk.Schema{
 		Type:       pluginsdk.TypeList,
 		Optional:   true,
-		Computed:   true,
 		ConfigMode: pluginsdk.SchemaConfigModeAttr,
 		Elem: &pluginsdk.Resource{
 			Schema: map[string]*pluginsdk.Schema{
@@ -1445,7 +1444,7 @@ func FlattenAuthSettings(auth web.SiteAuthSettings) []AuthSettings {
 
 func FlattenIpRestrictions(ipRestrictionsList *[]web.IPSecurityRestriction) []IpRestriction {
 	if ipRestrictionsList == nil {
-		return nil
+		return []IpRestriction{}
 	}
 
 	var ipRestrictions []IpRestriction

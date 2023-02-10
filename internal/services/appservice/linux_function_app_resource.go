@@ -400,7 +400,7 @@ func (r LinuxFunctionAppResource) Create() sdk.ResourceFunc {
 				}
 			}
 
-			siteConfig, err := helpers.ExpandSiteConfigLinuxFunctionApp(functionApp.SiteConfig, nil, metadata, functionApp.FunctionExtensionsVersion, storageString, functionApp.StorageUsesMSI)
+			siteConfig, err := helpers.ExpandSiteConfigLinuxFunctionAppForCreate(functionApp.SiteConfig, metadata, functionApp.FunctionExtensionsVersion, storageString, functionApp.StorageUsesMSI)
 			if err != nil {
 				return fmt.Errorf("expanding site_config for Linux %s: %+v", id, err)
 			}
@@ -435,8 +435,12 @@ func (r LinuxFunctionAppResource) Create() sdk.ResourceFunc {
 				}
 			}
 
-			siteConfig.LinuxFxVersion = helpers.EncodeFunctionAppLinuxFxVersion(functionApp.SiteConfig[0].ApplicationStack)
-			siteConfig.AppSettings = helpers.MergeUserAppSettings(siteConfig.AppSettings, functionApp.AppSettings)
+			if len(functionApp.SiteConfig) == 1 {
+				siteConfig.LinuxFxVersion = helpers.EncodeFunctionAppLinuxFxVersion(functionApp.SiteConfig[0].ApplicationStack)
+			}
+			if siteConfig != nil {
+				siteConfig.AppSettings = helpers.MergeUserAppSettings(siteConfig.AppSettings, functionApp.AppSettings)
+			}
 
 			expandedIdentity, err := expandIdentity(metadata.ResourceData.Get("identity").([]interface{}))
 			if err != nil {
@@ -649,11 +653,7 @@ func (r LinuxFunctionAppResource) Read() sdk.ResourceFunc {
 				return fmt.Errorf("making Read request on AzureRM Function App Configuration %q: %+v", id.SiteName, err)
 			}
 
-			siteConfig, err := helpers.FlattenSiteConfigLinuxFunctionApp(configResp.SiteConfig)
-			if err != nil {
-				return fmt.Errorf("reading Site Config for Linux %s: %+v", id, err)
-			}
-			state.SiteConfig = []helpers.SiteConfigLinuxFunctionApp{*siteConfig}
+			state.SiteConfig = helpers.FlattenSiteConfigLinuxFunctionApp(configResp.SiteConfig)
 
 			state.unpackLinuxFunctionAppSettings(appSettingsResp, metadata)
 
@@ -826,7 +826,7 @@ func (r LinuxFunctionAppResource) Update() sdk.ResourceFunc {
 			}
 
 			// Note: We process this regardless to give us a "clean" view of service-side app_settings, so we can reconcile the user-defined entries later
-			siteConfig, err := helpers.ExpandSiteConfigLinuxFunctionApp(state.SiteConfig, existing.SiteConfig, metadata, state.FunctionExtensionsVersion, storageString, state.StorageUsesMSI)
+			siteConfig, err := helpers.ExpandSiteConfigLinuxFunctionAppForUpdate(state.SiteConfig, existing.SiteConfig, metadata, state.FunctionExtensionsVersion, storageString, state.StorageUsesMSI)
 			if err != nil {
 				return fmt.Errorf("expanding Site Config for Linux %s: %+v", id, err)
 			}
