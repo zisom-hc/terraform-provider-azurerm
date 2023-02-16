@@ -654,12 +654,9 @@ func (r WindowsFunctionAppResource) Read() sdk.ResourceFunc {
 				return fmt.Errorf("making Read request on AzureRM Function App Configuration %q: %+v", id.SiteName, err)
 			}
 
-			siteConfig, err := helpers.FlattenSiteConfigWindowsFunctionApp(configResp.SiteConfig)
-			if err != nil {
-				return fmt.Errorf("reading Site Config for Windows %s: %+v", id, err)
-			}
+			siteConfig := helpers.FlattenSiteConfigWindowsFunctionApp(configResp.SiteConfig)
 
-			state.SiteConfig = []helpers.SiteConfigWindowsFunctionApp{*siteConfig}
+			state.SiteConfig = []helpers.SiteConfigWindowsFunctionApp{siteConfig}
 
 			state.unpackWindowsFunctionAppSettings(appSettingsResp, metadata)
 

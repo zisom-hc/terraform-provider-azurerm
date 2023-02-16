@@ -52,14 +52,14 @@ type SiteConfigLinux struct {
 func SiteConfigSchemaLinux() *pluginsdk.Schema {
 	return &pluginsdk.Schema{
 		Type:     pluginsdk.TypeList,
-		Required: true,
+		Optional: true,
 		MaxItems: 1,
 		Elem: &pluginsdk.Resource{
 			Schema: map[string]*pluginsdk.Schema{
 				"always_on": {
 					Type:     pluginsdk.TypeBool,
 					Optional: true,
-					Default:  true,
+					Computed: true, // (@jackofallops) - The default depends on the plan type as well as other factors
 				},
 
 				"api_management_api_id": {
@@ -84,6 +84,7 @@ func SiteConfigSchemaLinux() *pluginsdk.Schema {
 				"auto_heal_enabled": {
 					Type:     pluginsdk.TypeBool,
 					Optional: true,
+					Default:  false,
 					RequiredWith: []string{
 						"site_config.0.auto_heal_setting",
 					},
@@ -182,7 +183,7 @@ func SiteConfigSchemaLinux() *pluginsdk.Schema {
 				"use_32_bit_worker": {
 					Type:     pluginsdk.TypeBool,
 					Optional: true,
-					Default:  true,
+					Computed: true,
 				},
 
 				"websockets_enabled": {
@@ -194,7 +195,7 @@ func SiteConfigSchemaLinux() *pluginsdk.Schema {
 				"ftps_state": {
 					Type:     pluginsdk.TypeString,
 					Optional: true,
-					Default:  string(web.FtpsStateDisabled),
+					Default:  string(web.FtpsStateAllAllowed), // TODO - Breaking change here to align to service default!
 					ValidateFunc: validation.StringInSlice([]string{
 						string(web.FtpsStateAllAllowed),
 						string(web.FtpsStateDisabled),
@@ -210,7 +211,6 @@ func SiteConfigSchemaLinux() *pluginsdk.Schema {
 				"health_check_eviction_time_in_min": {
 					Type:         pluginsdk.TypeInt,
 					Optional:     true,
-					Computed:     true,
 					ValidateFunc: validation.IntBetween(2, 10),
 					Description:  "The amount of time in minutes that a node is unhealthy before being removed from the load balancer. Possible values are between `2` and `10`. Defaults to `10`. Only valid in conjunction with `health_check_path`",
 				},
@@ -218,7 +218,7 @@ func SiteConfigSchemaLinux() *pluginsdk.Schema {
 				"worker_count": {
 					Type:         pluginsdk.TypeInt,
 					Optional:     true,
-					Computed:     true,
+					Default:      1,
 					ValidateFunc: validation.IntBetween(1, 100),
 				},
 
@@ -734,17 +734,13 @@ func ExpandSiteConfigLinux(siteConfig []SiteConfigLinux, existing *web.SiteConfi
 
 	linuxSiteConfig := siteConfig[0]
 
+	expanded.AlwaysOn = pointer.To(linuxSiteConfig.AlwaysOn)
+
 	if servicePlan.Sku != nil && servicePlan.Sku.Name != nil {
 		if isFreeOrSharedServicePlan(*servicePlan.Sku.Name) {
-			if linuxSiteConfig.AlwaysOn {
-				return nil, fmt.Errorf("always_on cannot be set to true when using Free, F1, D1 Sku")
-			}
-			if expanded.AlwaysOn != nil && *expanded.AlwaysOn {
-				return nil, fmt.Errorf("always_on feature has to be turned off before switching to a free/shared Sku")
-			}
+			expanded.AlwaysOn = pointer.To(false)
 		}
 	}
-	expanded.AlwaysOn = pointer.To(linuxSiteConfig.AlwaysOn)
 
 	if metadata.ResourceData.HasChange("site_config.0.api_management_api_id") {
 		expanded.APIManagementConfig = &web.APIManagementConfig{
@@ -818,7 +814,7 @@ func ExpandSiteConfigLinux(siteConfig []SiteConfigLinux, existing *web.SiteConfi
 	expanded.HTTP20Enabled = pointer.To(linuxSiteConfig.Http2Enabled)
 
 	if metadata.ResourceData.HasChange("site_config.0.ip_restriction") {
-		ipRestrictions, err := ExpandIpRestrictions(linuxSiteConfig.IpRestriction)
+		ipRestrictions, err := ExpandIpRestrictionsForUpdate(linuxSiteConfig.IpRestriction)
 		if err != nil {
 			return nil, err
 		}
@@ -828,7 +824,7 @@ func ExpandSiteConfigLinux(siteConfig []SiteConfigLinux, existing *web.SiteConfi
 	expanded.ScmIPSecurityRestrictionsUseMain = pointer.To(linuxSiteConfig.ScmUseMainIpRestriction)
 
 	if metadata.ResourceData.HasChange("site_config.0.scm_ip_restriction") {
-		scmIpRestrictions, err := ExpandIpRestrictions(linuxSiteConfig.ScmIpRestriction)
+		scmIpRestrictions, err := ExpandIpRestrictionsForUpdate(linuxSiteConfig.ScmIpRestriction)
 		if err != nil {
 			return nil, err
 		}
@@ -878,9 +874,7 @@ func ExpandSiteConfigLinux(siteConfig []SiteConfigLinux, existing *web.SiteConfi
 	if metadata.ResourceData.HasChange("site_config.0.cors") {
 		cors := ExpandCorsSettings(linuxSiteConfig.Cors)
 		if cors == nil {
-			cors = &web.CorsSettings{
-				AllowedOrigins: &[]string{},
-			}
+			cors = pointer.To(CorsServiceDefault)
 		}
 		expanded.Cors = cors
 	}
@@ -891,16 +885,14 @@ func ExpandSiteConfigLinux(siteConfig []SiteConfigLinux, existing *web.SiteConfi
 		expanded.AutoHealRules = expandAutoHealSettingsLinux(linuxSiteConfig.AutoHealSettings)
 	}
 
-	if metadata.ResourceData.HasChange("site_config.0.vnet_route_all_enabled") {
-		expanded.VnetRouteAllEnabled = pointer.To(linuxSiteConfig.VnetRouteAllEnabled)
-	}
+	expanded.VnetRouteAllEnabled = pointer.To(linuxSiteConfig.VnetRouteAllEnabled)
 
 	return expanded, nil
 }
 
 func FlattenSiteConfigLinux(appSiteConfig *web.SiteConfig, healthCheckCount *int) []SiteConfigLinux {
 	if appSiteConfig == nil {
-		return nil
+		return []SiteConfigLinux{}
 	}
 
 	siteConfig := SiteConfigLinux{
@@ -909,6 +901,7 @@ func FlattenSiteConfigLinux(appSiteConfig *web.SiteConfig, healthCheckCount *int
 		AutoHeal:                pointer.From(appSiteConfig.AutoHealEnabled),
 		AutoHealSettings:        flattenAutoHealSettingsLinux(appSiteConfig.AutoHealRules),
 		ContainerRegistryMSI:    pointer.From(appSiteConfig.AcrUserManagedIdentityID),
+		DefaultDocuments:        pointer.From(appSiteConfig.DefaultDocuments),
 		DetailedErrorLogging:    pointer.From(appSiteConfig.DetailedErrorLoggingEnabled),
 		Http2Enabled:            pointer.From(appSiteConfig.HTTP20Enabled),
 		IpRestriction:           FlattenIpRestrictions(appSiteConfig.IPSecurityRestrictions),
@@ -916,7 +909,6 @@ func FlattenSiteConfigLinux(appSiteConfig *web.SiteConfig, healthCheckCount *int
 		ScmType:                 string(appSiteConfig.ScmType),
 		FtpsState:               string(appSiteConfig.FtpsState),
 		HealthCheckPath:         pointer.From(appSiteConfig.HealthCheckPath),
-		HealthCheckEvictionTime: pointer.From(healthCheckCount),
 		LoadBalancing:           string(appSiteConfig.LoadBalancing),
 		LocalMysql:              pointer.From(appSiteConfig.LocalMySQLEnabled),
 		MinTlsVersion:           string(appSiteConfig.MinTLSVersion),
@@ -937,20 +929,20 @@ func FlattenSiteConfigLinux(appSiteConfig *web.SiteConfig, healthCheckCount *int
 	}
 
 	if appSiteConfig.APIDefinition != nil && appSiteConfig.APIDefinition.URL != nil {
-		siteConfig.ApiDefinition = *appSiteConfig.APIDefinition.URL
+		siteConfig.ApiDefinition = pointer.From(appSiteConfig.APIDefinition.URL)
 	}
 
-	if appSiteConfig.DefaultDocuments != nil {
-		siteConfig.DefaultDocuments = *appSiteConfig.DefaultDocuments
+	if healthCheckCount != nil {
+		siteConfig.HealthCheckEvictionTime = pointer.From(healthCheckCount)
 	}
 
+	var linuxAppStack ApplicationStackLinux
 	if appSiteConfig.LinuxFxVersion != nil {
-		var linuxAppStack ApplicationStackLinux
 		siteConfig.LinuxFxVersion = *appSiteConfig.LinuxFxVersion
 		// Decode the string to docker values
 		linuxAppStack = decodeApplicationStackLinux(siteConfig.LinuxFxVersion)
-		siteConfig.ApplicationStack = []ApplicationStackLinux{linuxAppStack}
 	}
+	siteConfig.ApplicationStack = []ApplicationStackLinux{linuxAppStack}
 
 	if appSiteConfig.Cors != nil {
 		corsEmpty := false
@@ -1047,7 +1039,7 @@ func expandAutoHealSettingsLinux(autoHealSettings []AutoHealSettingLinux) *web.A
 
 func flattenAutoHealSettingsLinux(autoHealRules *web.AutoHealRules) []AutoHealSettingLinux {
 	if autoHealRules == nil {
-		return nil
+		return []AutoHealSettingLinux{}
 	}
 
 	result := AutoHealSettingLinux{}

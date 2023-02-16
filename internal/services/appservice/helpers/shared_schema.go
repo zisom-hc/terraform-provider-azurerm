@@ -50,7 +50,6 @@ func IpRestrictionSchema() *pluginsdk.Schema {
 	return &pluginsdk.Schema{
 		Type:       pluginsdk.TypeList,
 		Optional:   true,
-		Computed:   true,
 		ConfigMode: pluginsdk.SchemaConfigModeAttr,
 		Elem: &pluginsdk.Resource{
 			Schema: map[string]*pluginsdk.Schema{
@@ -1136,6 +1135,48 @@ func ExpandIpRestrictions(restrictions []IpRestriction) (*[]web.IPSecurityRestri
 	return &expanded, nil
 }
 
+func ExpandIpRestrictionsForUpdate(restrictions []IpRestriction) (*[]web.IPSecurityRestriction, error) {
+	var expanded []web.IPSecurityRestriction
+	if len(restrictions) == 0 {
+		expanded = append(expanded, IpRestrictionServiceDefault)
+		return &expanded, nil
+	}
+
+	for _, v := range restrictions {
+		if err := v.Validate(); err != nil {
+			return nil, err
+		}
+
+		var restriction web.IPSecurityRestriction
+		if v.Name != "" {
+			restriction.Name = utils.String(v.Name)
+		}
+
+		if v.IpAddress != "" {
+			restriction.IPAddress = utils.String(v.IpAddress)
+		}
+
+		if v.ServiceTag != "" {
+			restriction.IPAddress = utils.String(v.ServiceTag)
+			restriction.Tag = web.IPFilterTagServiceTag
+		}
+
+		if v.VnetSubnetId != "" {
+			restriction.VnetSubnetResourceID = utils.String(v.VnetSubnetId)
+		}
+
+		restriction.Priority = utils.Int32(int32(v.Priority))
+
+		restriction.Action = utils.String(v.Action)
+
+		restriction.Headers = expandIpRestrictionHeaders(v.Headers)
+
+		expanded = append(expanded, restriction)
+	}
+
+	return &expanded, nil
+}
+
 func expandIpRestrictionHeaders(headers []IpRestrictionHeaders) map[string][]string {
 	result := make(map[string][]string)
 	if len(headers) == 0 {
@@ -1281,7 +1322,7 @@ func ExpandAuthSettings(auth []AuthSettings) *web.SiteAuthSettings {
 
 func FlattenAuthSettings(auth web.SiteAuthSettings) []AuthSettings {
 	if auth.SiteAuthSettingsProperties == nil {
-		return nil
+		return []AuthSettings{}
 	}
 
 	props := *auth.SiteAuthSettingsProperties
@@ -1445,7 +1486,7 @@ func FlattenAuthSettings(auth web.SiteAuthSettings) []AuthSettings {
 
 func FlattenIpRestrictions(ipRestrictionsList *[]web.IPSecurityRestriction) []IpRestriction {
 	if ipRestrictionsList == nil {
-		return nil
+		return []IpRestriction{}
 	}
 
 	var ipRestrictions []IpRestriction
@@ -1457,10 +1498,6 @@ func FlattenIpRestrictions(ipRestrictionsList *[]web.IPSecurityRestriction) []Ip
 		}
 
 		if v.IPAddress != nil {
-			if *v.IPAddress == "Any" {
-				continue
-			}
-
 			if v.Tag == web.IPFilterTagServiceTag {
 				ipRestriction.ServiceTag = *v.IPAddress
 			} else {
@@ -1485,12 +1522,16 @@ func FlattenIpRestrictions(ipRestrictionsList *[]web.IPSecurityRestriction) []Ip
 		ipRestrictions = append(ipRestrictions, ipRestriction)
 	}
 
+	if ipRestrictionIsDefaultPublic(ipRestrictions) {
+		return []IpRestriction{}
+	}
+
 	return ipRestrictions
 }
 
 func flattenIpRestrictionHeaders(headers map[string][]string) []IpRestrictionHeaders {
 	if len(headers) == 0 {
-		return nil
+		return []IpRestrictionHeaders{}
 	}
 	ipRestrictionHeader := IpRestrictionHeaders{}
 	if xForwardFor, ok := headers["x-forwarded-for"]; ok {

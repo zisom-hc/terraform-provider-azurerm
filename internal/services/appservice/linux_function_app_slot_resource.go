@@ -657,11 +657,7 @@ func (r LinuxFunctionAppSlotResource) Read() sdk.ResourceFunc {
 				return fmt.Errorf("making Read request on AzureRM Function App Configuration %q: %+v", id.SiteName, err)
 			}
 
-			siteConfig, err := helpers.FlattenSiteConfigLinuxFunctionAppSlot(configResp.SiteConfig)
-			if err != nil {
-				return fmt.Errorf("reading Site Config for Linux %s: %+v", id, err)
-			}
-			state.SiteConfig = []helpers.SiteConfigLinuxFunctionAppSlot{*siteConfig}
+			state.SiteConfig = []helpers.SiteConfigLinuxFunctionAppSlot{helpers.FlattenSiteConfigLinuxFunctionAppSlot(configResp.SiteConfig)}
 
 			state.unpackLinuxFunctionAppSettings(appSettingsResp, metadata)
 

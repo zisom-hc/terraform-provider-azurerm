@@ -135,15 +135,11 @@ func EncodeFunctionAppLinuxFxVersion(input []ApplicationStackLinuxFunctionApp) *
 	return utils.String(fmt.Sprintf("%s|%s", appType, appString))
 }
 
-func DecodeFunctionAppLinuxFxVersion(input string) ([]ApplicationStackLinuxFunctionApp, error) {
-	if input == "" {
-		// This is a valid string for "Custom" stack which we picked up earlier, so we can skip here
-		return nil, nil
-	}
-
+func DecodeFunctionAppLinuxFxVersion(input string) []ApplicationStackLinuxFunctionApp {
 	parts := strings.Split(input, "|")
-	if len(parts) != 2 {
-		return nil, fmt.Errorf("unrecognised LinuxFxVersion format received, got %s", input)
+	if input == "" || len(parts) != 2 {
+		// This is a valid string for "Custom" stack which we picked up earlier, so we can skip here
+		return []ApplicationStackLinuxFunctionApp{}
 	}
 
 	result := make([]ApplicationStackLinuxFunctionApp, 0)
@@ -177,7 +173,7 @@ func DecodeFunctionAppLinuxFxVersion(input string) ([]ApplicationStackLinuxFunct
 		// This is handled as part of unpacking the app_settings using DecodeFunctionAppDockerFxString but included here for signposting as this is not intuitive.
 	}
 
-	return result, nil
+	return result
 }
 
 func DecodeFunctionAppDockerFxString(input string, partial ApplicationStackDocker) ([]ApplicationStackDocker, error) {

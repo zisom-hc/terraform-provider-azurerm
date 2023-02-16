@@ -576,10 +576,7 @@ func (r WindowsWebAppResource) Read() sdk.ResourceFunc {
 				currentStack = *currentStackPtr
 			}
 
-			state.SiteConfig, err = helpers.FlattenSiteConfigWindows(webAppSiteConfig.SiteConfig, currentStack, healthCheckCount)
-			if err != nil {
-				return fmt.Errorf("reading %s: %+v", *id, err)
-			}
+			state.SiteConfig = helpers.FlattenSiteConfigWindows(webAppSiteConfig.SiteConfig, currentStack, healthCheckCount)
 			if nodeVer, ok := state.AppSettings["WEBSITE_NODE_DEFAULT_VERSION"]; ok {
 				if state.SiteConfig[0].ApplicationStack == nil {
 					state.SiteConfig[0].ApplicationStack = make([]helpers.ApplicationStackWindows, 0)

@@ -55,7 +55,7 @@ type SiteConfigWindows struct {
 func SiteConfigSchemaWindows() *pluginsdk.Schema {
 	return &pluginsdk.Schema{
 		Type:     pluginsdk.TypeList,
-		Required: true,
+		Optional: true,
 		MaxItems: 1,
 		Elem: &pluginsdk.Resource{
 			Schema: map[string]*pluginsdk.Schema{
@@ -654,9 +654,9 @@ func ExpandSiteConfigWindows(siteConfig []SiteConfigWindows, existing *web.SiteC
 	return expanded, &currentStack, nil
 }
 
-func FlattenSiteConfigWindows(appSiteConfig *web.SiteConfig, currentStack string, healthCheckCount *int) ([]SiteConfigWindows, error) {
+func FlattenSiteConfigWindows(appSiteConfig *web.SiteConfig, currentStack string, healthCheckCount *int) []SiteConfigWindows {
 	if appSiteConfig == nil {
-		return nil, nil
+		return []SiteConfigWindows{}
 	}
 
 	siteConfig := SiteConfigWindows{
@@ -692,7 +692,7 @@ func FlattenSiteConfigWindows(appSiteConfig *web.SiteConfig, currentStack string
 	if appSiteConfig.APIManagementConfig != nil && appSiteConfig.APIManagementConfig.ID != nil {
 		apiId, err := parse.ApiIDInsensitively(*appSiteConfig.APIManagementConfig.ID)
 		if err != nil {
-			return nil, fmt.Errorf("could not parse API Management ID: %+v", err)
+			siteConfig.ApiManagementConfigId = ""
 		}
 		siteConfig.ApiManagementConfigId = apiId.ID()
 	}
@@ -769,5 +769,5 @@ func FlattenSiteConfigWindows(appSiteConfig *web.SiteConfig, currentStack string
 		}
 	}
 
-	return []SiteConfigWindows{siteConfig}, nil
+	return []SiteConfigWindows{siteConfig}
 }

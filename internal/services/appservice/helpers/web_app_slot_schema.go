@@ -717,7 +717,7 @@ func ExpandSiteConfigLinuxWebAppSlot(siteConfig []SiteConfigLinuxWebAppSlot, exi
 
 func FlattenSiteConfigLinuxWebAppSlot(appSiteSlotConfig *web.SiteConfig, healthCheckCount *int) []SiteConfigLinuxWebAppSlot {
 	if appSiteSlotConfig == nil {
-		return nil
+		return []SiteConfigLinuxWebAppSlot{}
 	}
 
 	siteConfig := SiteConfigLinuxWebAppSlot{
@@ -1023,7 +1023,7 @@ func ExpandSiteConfigWindowsWebAppSlot(siteConfig []SiteConfigWindowsWebAppSlot,
 
 func FlattenSiteConfigWindowsAppSlot(appSiteSlotConfig *web.SiteConfig, currentStack string, healthCheckCount *int) []SiteConfigWindowsWebAppSlot {
 	if appSiteSlotConfig == nil {
-		return nil
+		return []SiteConfigWindowsWebAppSlot{}
 	}
 
 	siteConfig := SiteConfigWindowsWebAppSlot{

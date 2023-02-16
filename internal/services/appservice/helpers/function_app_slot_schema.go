@@ -835,12 +835,12 @@ func ExpandSiteConfigWindowsFunctionAppSlot(siteConfig []SiteConfigWindowsFuncti
 	return expanded, nil
 }
 
-func FlattenSiteConfigWindowsFunctionAppSlot(functionAppSlotSiteConfig *web.SiteConfig) (*SiteConfigWindowsFunctionAppSlot, error) {
+func FlattenSiteConfigWindowsFunctionAppSlot(functionAppSlotSiteConfig *web.SiteConfig) SiteConfigWindowsFunctionAppSlot {
 	if functionAppSlotSiteConfig == nil {
-		return nil, fmt.Errorf("flattening site config: SiteConfig was nil")
+		return SiteConfigWindowsFunctionAppSlot{}
 	}
 
-	result := &SiteConfigWindowsFunctionAppSlot{
+	result := SiteConfigWindowsFunctionAppSlot{
 		AlwaysOn:                utils.NormaliseNilableBool(functionAppSlotSiteConfig.AlwaysOn),
 		AppCommandLine:          utils.NormalizeNilableString(functionAppSlotSiteConfig.AppCommandLine),
 		AppScaleLimit:           int(utils.NormaliseNilableInt32(functionAppSlotSiteConfig.FunctionAppScaleLimit)),
@@ -924,7 +924,7 @@ func FlattenSiteConfigWindowsFunctionAppSlot(functionAppSlotSiteConfig *web.Site
 		CustomHandler:         false, // Note: this is set later from app_settings
 	}}
 
-	return result, nil
+	return result
 }
 
 func ExpandSiteConfigLinuxFunctionAppSlot(siteConfig []SiteConfigLinuxFunctionAppSlot, existing *web.SiteConfig, metadata sdk.ResourceMetaData, version string, storageString string, storageUsesMSI bool) (*web.SiteConfig, error) {
@@ -1186,12 +1186,12 @@ func ExpandSiteConfigLinuxFunctionAppSlot(siteConfig []SiteConfigLinuxFunctionAp
 	return expanded, nil
 }
 
-func FlattenSiteConfigLinuxFunctionAppSlot(functionAppSlotSiteConfig *web.SiteConfig) (*SiteConfigLinuxFunctionAppSlot, error) {
+func FlattenSiteConfigLinuxFunctionAppSlot(functionAppSlotSiteConfig *web.SiteConfig) SiteConfigLinuxFunctionAppSlot {
 	if functionAppSlotSiteConfig == nil {
-		return nil, fmt.Errorf("flattening site config: SiteConfig was nil")
+		return SiteConfigLinuxFunctionAppSlot{}
 	}
 
-	result := &SiteConfigLinuxFunctionAppSlot{
+	result := SiteConfigLinuxFunctionAppSlot{
 		AlwaysOn:                utils.NormaliseNilableBool(functionAppSlotSiteConfig.AlwaysOn),
 		AppCommandLine:          utils.NormalizeNilableString(functionAppSlotSiteConfig.AppCommandLine),
 		AppScaleLimit:           int(utils.NormaliseNilableInt32(functionAppSlotSiteConfig.FunctionAppScaleLimit)),
@@ -1260,15 +1260,9 @@ func FlattenSiteConfigLinuxFunctionAppSlot(functionAppSlotSiteConfig *web.SiteCo
 		}
 	}
 
-	var appStack []ApplicationStackLinuxFunctionApp
 	if functionAppSlotSiteConfig.LinuxFxVersion != nil {
-		decoded, err := DecodeFunctionAppLinuxFxVersion(*functionAppSlotSiteConfig.LinuxFxVersion)
-		if err != nil {
-			return nil, fmt.Errorf("flattening site config: %s", err)
-		}
-		appStack = decoded
+		result.ApplicationStack = DecodeFunctionAppLinuxFxVersion(*functionAppSlotSiteConfig.LinuxFxVersion)
 	}
-	result.ApplicationStack = appStack
 
-	return result, nil
+	return result
 }

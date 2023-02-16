@@ -1951,12 +1951,12 @@ func ExpandSiteConfigWindowsFunctionApp(siteConfig []SiteConfigWindowsFunctionAp
 	return expanded, nil
 }
 
-func FlattenSiteConfigLinuxFunctionApp(functionAppSiteConfig *web.SiteConfig) (*SiteConfigLinuxFunctionApp, error) {
+func FlattenSiteConfigLinuxFunctionApp(functionAppSiteConfig *web.SiteConfig) SiteConfigLinuxFunctionApp {
 	if functionAppSiteConfig == nil {
-		return nil, fmt.Errorf("flattening site config: SiteConfig was nil")
+		return SiteConfigLinuxFunctionApp{}
 	}
 
-	result := &SiteConfigLinuxFunctionApp{
+	result := SiteConfigLinuxFunctionApp{
 		AlwaysOn:                utils.NormaliseNilableBool(functionAppSiteConfig.AlwaysOn),
 		AppCommandLine:          utils.NormalizeNilableString(functionAppSiteConfig.AppCommandLine),
 		AppScaleLimit:           int(utils.NormaliseNilableInt32(functionAppSiteConfig.FunctionAppScaleLimit)),
@@ -2024,25 +2024,19 @@ func FlattenSiteConfigLinuxFunctionApp(functionAppSiteConfig *web.SiteConfig) (*
 		}
 	}
 
-	var appStack []ApplicationStackLinuxFunctionApp
 	if functionAppSiteConfig.LinuxFxVersion != nil {
-		decoded, err := DecodeFunctionAppLinuxFxVersion(*functionAppSiteConfig.LinuxFxVersion)
-		if err != nil {
-			return nil, fmt.Errorf("flattening site config: %s", err)
-		}
-		appStack = decoded
+		result.ApplicationStack = DecodeFunctionAppLinuxFxVersion(*functionAppSiteConfig.LinuxFxVersion)
 	}
-	result.ApplicationStack = appStack
 
-	return result, nil
+	return result
 }
 
-func FlattenSiteConfigWindowsFunctionApp(functionAppSiteConfig *web.SiteConfig) (*SiteConfigWindowsFunctionApp, error) {
+func FlattenSiteConfigWindowsFunctionApp(functionAppSiteConfig *web.SiteConfig) SiteConfigWindowsFunctionApp {
 	if functionAppSiteConfig == nil {
-		return nil, fmt.Errorf("flattening site config: SiteConfig was nil")
+		return SiteConfigWindowsFunctionApp{}
 	}
 
-	result := &SiteConfigWindowsFunctionApp{
+	result := SiteConfigWindowsFunctionApp{
 		AlwaysOn:                utils.NormaliseNilableBool(functionAppSiteConfig.AlwaysOn),
 		AppCommandLine:          utils.NormalizeNilableString(functionAppSiteConfig.AppCommandLine),
 		AppScaleLimit:           int(utils.NormaliseNilableInt32(functionAppSiteConfig.FunctionAppScaleLimit)),
@@ -2126,7 +2120,7 @@ func FlattenSiteConfigWindowsFunctionApp(functionAppSiteConfig *web.SiteConfig) 
 		CustomHandler:         false, // set this later from app_settings
 	}}
 
-	return result, nil
+	return result
 }
 
 func ParseWebJobsStorageString(input *string) (name, key string) {
