@@ -717,7 +717,7 @@ func ExpandSiteConfigLinuxWebAppSlot(siteConfig []SiteConfigLinuxWebAppSlot, exi
 
 func FlattenSiteConfigLinuxWebAppSlot(appSiteSlotConfig *web.SiteConfig, healthCheckCount *int) []SiteConfigLinuxWebAppSlot {
 	if appSiteSlotConfig == nil {
-		return nil
+		return []SiteConfigLinuxWebAppSlot{}
 	}
 
 	siteConfig := SiteConfigLinuxWebAppSlot{
@@ -748,6 +748,7 @@ func FlattenSiteConfigLinuxWebAppSlot(appSiteSlotConfig *web.SiteConfig, healthC
 		UseManagedIdentityACR:   pointer.From(appSiteSlotConfig.AcrUseManagedIdentityCreds),
 		WebSockets:              pointer.From(appSiteSlotConfig.WebSocketsEnabled),
 		VnetRouteAllEnabled:     pointer.From(appSiteSlotConfig.VnetRouteAllEnabled),
+		Cors:                    FlattenCorsSettings(appSiteSlotConfig.Cors),
 	}
 
 	if appSiteSlotConfig.APIManagementConfig != nil && appSiteSlotConfig.APIManagementConfig.ID != nil {
@@ -768,27 +769,6 @@ func FlattenSiteConfigLinuxWebAppSlot(appSiteSlotConfig *web.SiteConfig, healthC
 		// Decode the string to docker values
 		linuxAppStack = decodeApplicationStackLinux(siteConfig.LinuxFxVersion)
 		siteConfig.ApplicationStack = []ApplicationStackLinux{linuxAppStack}
-	}
-
-	if appSiteSlotConfig.Cors != nil {
-		corsEmpty := false
-		corsSettings := appSiteSlotConfig.Cors
-		cors := CorsSetting{}
-		if corsSettings.SupportCredentials != nil {
-			cors.SupportCredentials = *corsSettings.SupportCredentials
-		}
-
-		if corsSettings.AllowedOrigins != nil {
-			if len(*corsSettings.AllowedOrigins) > 0 {
-				cors.AllowedOrigins = *corsSettings.AllowedOrigins
-			} else if !cors.SupportCredentials {
-				corsEmpty = true
-			}
-		}
-
-		if !corsEmpty {
-			siteConfig.Cors = []CorsSetting{cors}
-		}
 	}
 
 	return []SiteConfigLinuxWebAppSlot{siteConfig}
@@ -1023,7 +1003,7 @@ func ExpandSiteConfigWindowsWebAppSlot(siteConfig []SiteConfigWindowsWebAppSlot,
 
 func FlattenSiteConfigWindowsAppSlot(appSiteSlotConfig *web.SiteConfig, currentStack string, healthCheckCount *int) []SiteConfigWindowsWebAppSlot {
 	if appSiteSlotConfig == nil {
-		return nil
+		return []SiteConfigWindowsWebAppSlot{}
 	}
 
 	siteConfig := SiteConfigWindowsWebAppSlot{
@@ -1055,6 +1035,7 @@ func FlattenSiteConfigWindowsAppSlot(appSiteSlotConfig *web.SiteConfig, currentS
 		VirtualApplications:      flattenVirtualApplications(appSiteSlotConfig.VirtualApplications),
 		WebSockets:               pointer.From(appSiteSlotConfig.WebSocketsEnabled),
 		VnetRouteAllEnabled:      pointer.From(appSiteSlotConfig.VnetRouteAllEnabled),
+		Cors:                     FlattenCorsSettings(appSiteSlotConfig.Cors),
 	}
 
 	if appSiteSlotConfig.APIManagementConfig != nil && appSiteSlotConfig.APIManagementConfig.ID != nil {
@@ -1111,26 +1092,6 @@ func FlattenSiteConfigWindowsAppSlot(appSiteSlotConfig *web.SiteConfig, currentS
 	winAppStack.CurrentStack = currentStack
 
 	siteConfig.ApplicationStack = []ApplicationStackWindows{winAppStack}
-
-	if appSiteSlotConfig.Cors != nil {
-		corsEmpty := false
-		corsSettings := appSiteSlotConfig.Cors
-		cors := CorsSetting{}
-		if corsSettings.SupportCredentials != nil {
-			cors.SupportCredentials = *corsSettings.SupportCredentials
-		}
-
-		if corsSettings.AllowedOrigins != nil {
-			if len(*corsSettings.AllowedOrigins) > 0 {
-				cors.AllowedOrigins = *corsSettings.AllowedOrigins
-			} else if !cors.SupportCredentials {
-				corsEmpty = true
-			}
-		}
-		if !corsEmpty {
-			siteConfig.Cors = []CorsSetting{cors}
-		}
-	}
 
 	return []SiteConfigWindowsWebAppSlot{siteConfig}
 }

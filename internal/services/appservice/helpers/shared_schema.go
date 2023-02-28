@@ -1160,22 +1160,30 @@ func expandIpRestrictionHeaders(headers []IpRestrictionHeaders) map[string][]str
 }
 
 func ExpandCorsSettings(input []CorsSetting) *web.CorsSettings {
-	if len(input) == 0 {
-		allowedOrigins := make([]string, 0)
+	if len(input) != 1 {
 		return &web.CorsSettings{
-			AllowedOrigins:     &allowedOrigins,
+			AllowedOrigins:     pointer.To(make([]string, 0)),
 			SupportCredentials: pointer.To(false),
 		}
 	}
-	var result web.CorsSettings
-	for _, v := range input {
-		if v.SupportCredentials {
-			result.SupportCredentials = utils.Bool(v.SupportCredentials)
-		}
 
-		result.AllowedOrigins = &v.AllowedOrigins
+	return &web.CorsSettings{
+		AllowedOrigins:     pointer.To(input[0].AllowedOrigins),
+		SupportCredentials: pointer.To(input[0].SupportCredentials),
 	}
-	return &result
+}
+
+func FlattenCorsSettings(input *web.CorsSettings) []CorsSetting {
+	if input == nil {
+		return []CorsSetting{}
+	}
+
+	return []CorsSetting{
+		{
+			AllowedOrigins:     pointer.From(input.AllowedOrigins),
+			SupportCredentials: pointer.From(input.SupportCredentials),
+		},
+	}
 }
 
 func ExpandAuthSettings(auth []AuthSettings) *web.SiteAuthSettings {
@@ -1280,7 +1288,7 @@ func ExpandAuthSettings(auth []AuthSettings) *web.SiteAuthSettings {
 
 func FlattenAuthSettings(auth web.SiteAuthSettings) []AuthSettings {
 	if auth.SiteAuthSettingsProperties == nil {
-		return nil
+		return []AuthSettings{}
 	}
 
 	props := *auth.SiteAuthSettingsProperties
@@ -1489,7 +1497,7 @@ func FlattenIpRestrictions(ipRestrictionsList *[]web.IPSecurityRestriction) []Ip
 
 func flattenIpRestrictionHeaders(headers map[string][]string) []IpRestrictionHeaders {
 	if len(headers) == 0 {
-		return nil
+		return []IpRestrictionHeaders{}
 	}
 	ipRestrictionHeader := IpRestrictionHeaders{}
 	if xForwardFor, ok := headers["x-forwarded-for"]; ok {

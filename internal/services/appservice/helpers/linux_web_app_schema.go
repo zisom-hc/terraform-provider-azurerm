@@ -900,7 +900,7 @@ func ExpandSiteConfigLinux(siteConfig []SiteConfigLinux, existing *web.SiteConfi
 
 func FlattenSiteConfigLinux(appSiteConfig *web.SiteConfig, healthCheckCount *int) []SiteConfigLinux {
 	if appSiteConfig == nil {
-		return nil
+		return []SiteConfigLinux{}
 	}
 
 	siteConfig := SiteConfigLinux{
@@ -1047,7 +1047,7 @@ func expandAutoHealSettingsLinux(autoHealSettings []AutoHealSettingLinux) *web.A
 
 func flattenAutoHealSettingsLinux(autoHealRules *web.AutoHealRules) []AutoHealSettingLinux {
 	if autoHealRules == nil {
-		return nil
+		return []AutoHealSettingLinux{}
 	}
 
 	result := AutoHealSettingLinux{}

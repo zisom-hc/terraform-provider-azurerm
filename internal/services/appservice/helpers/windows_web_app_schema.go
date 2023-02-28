@@ -55,7 +55,7 @@ type SiteConfigWindows struct {
 func SiteConfigSchemaWindows() *pluginsdk.Schema {
 	return &pluginsdk.Schema{
 		Type:     pluginsdk.TypeList,
-		Required: true,
+		Optional: true,
 		MaxItems: 1,
 		Elem: &pluginsdk.Resource{
 			Schema: map[string]*pluginsdk.Schema{
@@ -656,7 +656,7 @@ func ExpandSiteConfigWindows(siteConfig []SiteConfigWindows, existing *web.SiteC
 
 func FlattenSiteConfigWindows(appSiteConfig *web.SiteConfig, currentStack string, healthCheckCount *int) ([]SiteConfigWindows, error) {
 	if appSiteConfig == nil {
-		return nil, nil
+		return []SiteConfigWindows{}, nil
 	}
 
 	siteConfig := SiteConfigWindows{
@@ -687,6 +687,7 @@ func FlattenSiteConfigWindows(appSiteConfig *web.SiteConfig, currentStack string
 		VirtualApplications:      flattenVirtualApplications(appSiteConfig.VirtualApplications),
 		WebSockets:               pointer.From(appSiteConfig.WebSocketsEnabled),
 		VnetRouteAllEnabled:      pointer.From(appSiteConfig.VnetRouteAllEnabled),
+		Cors:                     FlattenCorsSettings(appSiteConfig.Cors),
 	}
 
 	if appSiteConfig.APIManagementConfig != nil && appSiteConfig.APIManagementConfig.ID != nil {
@@ -748,26 +749,6 @@ func FlattenSiteConfigWindows(appSiteConfig *web.SiteConfig, currentStack string
 	winAppStack.CurrentStack = currentStack
 
 	siteConfig.ApplicationStack = []ApplicationStackWindows{winAppStack}
-
-	if appSiteConfig.Cors != nil {
-		corsEmpty := false
-		corsSettings := appSiteConfig.Cors
-		cors := CorsSetting{}
-		if corsSettings.SupportCredentials != nil {
-			cors.SupportCredentials = *corsSettings.SupportCredentials
-		}
-
-		if corsSettings.AllowedOrigins != nil {
-			if len(*corsSettings.AllowedOrigins) > 0 {
-				cors.AllowedOrigins = *corsSettings.AllowedOrigins
-			} else if !cors.SupportCredentials {
-				corsEmpty = true
-			}
-		}
-		if !corsEmpty {
-			siteConfig.Cors = []CorsSetting{cors}
-		}
-	}
 
 	return []SiteConfigWindows{siteConfig}, nil
 }

@@ -865,6 +865,7 @@ func FlattenSiteConfigWindowsFunctionAppSlot(functionAppSlotSiteConfig *web.Site
 		RemoteDebugging:         utils.NormaliseNilableBool(functionAppSlotSiteConfig.RemoteDebuggingEnabled),
 		RemoteDebuggingVersion:  strings.ToUpper(utils.NormalizeNilableString(functionAppSlotSiteConfig.RemoteDebuggingVersion)),
 		VnetRouteAllEnabled:     utils.NormaliseNilableBool(functionAppSlotSiteConfig.VnetRouteAllEnabled),
+		Cors:                    FlattenCorsSettings(functionAppSlotSiteConfig.Cors),
 	}
 
 	if v := functionAppSlotSiteConfig.APIDefinition; v != nil && v.URL != nil {
@@ -885,26 +886,6 @@ func FlattenSiteConfigWindowsFunctionAppSlot(functionAppSlotSiteConfig *web.Site
 
 	if v := functionAppSlotSiteConfig.DefaultDocuments; v != nil {
 		result.DefaultDocuments = *v
-	}
-
-	if functionAppSlotSiteConfig.Cors != nil {
-		corsEmpty := false
-		corsSettings := functionAppSlotSiteConfig.Cors
-		cors := CorsSetting{}
-		if corsSettings.SupportCredentials != nil {
-			cors.SupportCredentials = *corsSettings.SupportCredentials
-		}
-
-		if corsSettings.AllowedOrigins != nil {
-			if len(*corsSettings.AllowedOrigins) > 0 {
-				cors.AllowedOrigins = *corsSettings.AllowedOrigins
-			} else if !cors.SupportCredentials {
-				corsEmpty = true
-			}
-		}
-		if !corsEmpty {
-			result.Cors = []CorsSetting{cors}
-		}
 	}
 
 	powershellVersion := ""

@@ -2135,6 +2135,7 @@ func FlattenSiteConfigLinuxFunctionApp(functionAppSiteConfig *web.SiteConfig) []
 		VnetRouteAllEnabled:     utils.NormaliseNilableBool(functionAppSiteConfig.VnetRouteAllEnabled),
 		IpRestriction:           FlattenIpRestrictions(functionAppSiteConfig.IPSecurityRestrictions),
 		ScmIpRestriction:        FlattenIpRestrictions(functionAppSiteConfig.ScmIPSecurityRestrictions),
+		Cors:                    FlattenCorsSettings(functionAppSiteConfig.Cors),
 	}
 
 	if v := functionAppSiteConfig.APIDefinition; v != nil && v.URL != nil {
@@ -2147,14 +2148,6 @@ func FlattenSiteConfigLinuxFunctionApp(functionAppSiteConfig *web.SiteConfig) []
 
 	if v := functionAppSiteConfig.DefaultDocuments; v != nil {
 		result.DefaultDocuments = *v
-	}
-
-	if functionAppSiteConfig.Cors != nil {
-		corsSettings := functionAppSiteConfig.Cors
-		result.Cors = []CorsSetting{{
-			AllowedOrigins:     pointer.From(corsSettings.AllowedOrigins),
-			SupportCredentials: pointer.From(corsSettings.SupportCredentials),
-		}}
 	}
 
 	var appStack []ApplicationStackLinuxFunctionApp
@@ -2195,6 +2188,7 @@ func FlattenSiteConfigWindowsFunctionApp(functionAppSiteConfig *web.SiteConfig) 
 		RemoteDebugging:         utils.NormaliseNilableBool(functionAppSiteConfig.RemoteDebuggingEnabled),
 		RemoteDebuggingVersion:  strings.ToUpper(utils.NormalizeNilableString(functionAppSiteConfig.RemoteDebuggingVersion)),
 		VnetRouteAllEnabled:     utils.NormaliseNilableBool(functionAppSiteConfig.VnetRouteAllEnabled),
+		Cors:                    FlattenCorsSettings(functionAppSiteConfig.Cors),
 	}
 
 	if v := functionAppSiteConfig.APIDefinition; v != nil && v.URL != nil {
@@ -2215,27 +2209,6 @@ func FlattenSiteConfigWindowsFunctionApp(functionAppSiteConfig *web.SiteConfig) 
 
 	if v := functionAppSiteConfig.DefaultDocuments; v != nil {
 		result.DefaultDocuments = *v
-	}
-
-	if functionAppSiteConfig.Cors != nil {
-		corsSettings := functionAppSiteConfig.Cors
-		corsEmpty := false
-		cors := CorsSetting{}
-		if corsSettings.SupportCredentials != nil {
-			cors.SupportCredentials = *corsSettings.SupportCredentials
-		}
-
-		if corsSettings.AllowedOrigins != nil {
-			if len(*corsSettings.AllowedOrigins) > 0 {
-				cors.AllowedOrigins = *corsSettings.AllowedOrigins
-			} else if !cors.SupportCredentials {
-				corsEmpty = true
-			}
-		}
-
-		if !corsEmpty {
-			result.Cors = []CorsSetting{cors}
-		}
 	}
 
 	powershellVersion := ""

@@ -1515,7 +1515,6 @@ resource "azurerm_linux_function_app" "test" {
   storage_account_name       = azurerm_storage_account.test.name
   storage_account_access_key = azurerm_storage_account.test.primary_access_key
 
-  site_config {}
 }
 `, r.template(data, planSku), data.RandomInteger)
 }
