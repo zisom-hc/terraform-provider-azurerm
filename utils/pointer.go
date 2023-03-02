@@ -24,9 +24,9 @@ func String(input string) *string {
 	return &input
 }
 
-/*func ToPtr[E any](e E) *E {
+func ToPtr[E any](e E) *E {
 	return &e
-}*/
+}
 
 func StringSlice(input []string) *[]string {
 	if input == nil {
