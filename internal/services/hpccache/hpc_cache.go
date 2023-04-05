@@ -3,34 +3,25 @@ package hpccache
 import (
 	"context"
 	"fmt"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/resource-manager/storagecache/2021-09-01/caches"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/services/storagecache/mgmt/2021-09-01/storagecache" // nolint: staticcheck
 	"github.com/hashicorp/terraform-provider-azurerm/internal/tf/pluginsdk"
-	"github.com/hashicorp/terraform-provider-azurerm/utils"
 )
 
-func CacheGetAccessPolicyRuleByScope(policyRules []storagecache.NfsAccessRule, scope storagecache.NfsAccessRuleScope) (storagecache.NfsAccessRule, bool) {
-	for _, rule := range policyRules {
-		if rule.Scope == scope {
-			return rule, true
-		}
-	}
-
-	return storagecache.NfsAccessRule{}, false
-}
-
-func CacheGetAccessPolicyByName(policies []storagecache.NfsAccessPolicy, name string) *storagecache.NfsAccessPolicy {
+func getAccessPolicyByName(policies []caches.NfsAccessPolicy, name string) *caches.NfsAccessPolicy {
 	for _, policy := range policies {
-		if policy.Name != nil && *policy.Name == name {
+		if policy.Name == name {
 			return &policy
 		}
 	}
 	return nil
 }
 
-func CacheDeleteAccessPolicyByName(policies []storagecache.NfsAccessPolicy, name string) []storagecache.NfsAccessPolicy {
-	var newPolicies []storagecache.NfsAccessPolicy
+func deleteAccessPolicyByName(policies []storagecache.NfsAccessPolicy, name string) []storagecache.NfsAccessPolicy {
+	newPolicies := make([]storagecache.NfsAccessPolicy, 0)
 	for _, policy := range policies {
 		if policy.Name != nil && *policy.Name != name {
 			newPolicies = append(newPolicies, policy)
@@ -43,8 +34,8 @@ func CacheInsertOrUpdateAccessPolicy(policies []storagecache.NfsAccessPolicy, po
 	if policy.Name == nil {
 		return nil, fmt.Errorf("the name of the HPC Cache access policy is nil")
 	}
-	var newPolicies []storagecache.NfsAccessPolicy
 
+	newPolicies := make([]storagecache.NfsAccessPolicy, 0)
 	isNew := true
 	for _, existPolicy := range policies {
 		if existPolicy.Name != nil && *existPolicy.Name == *policy.Name {
@@ -62,35 +53,47 @@ func CacheInsertOrUpdateAccessPolicy(policies []storagecache.NfsAccessPolicy, po
 	return append(newPolicies, policy), nil
 }
 
-func resourceHPCCacheWaitForCreating(ctx context.Context, client *storagecache.CachesClient, resourceGroup, name string, d *pluginsdk.ResourceData) (storagecache.Cache, error) {
+func resourceHPCCacheWaitForCreating(ctx context.Context, client *caches.CachesClient, id caches.CacheId) (*storagecache.Cache, error) {
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		return nil, fmt.Errorf("internal-error: context had no deadline")
+	}
 	state := &pluginsdk.StateChangeConf{
 		MinTimeout: 30 * time.Second,
 		Delay:      10 * time.Second,
 		Pending:    []string{string(storagecache.ProvisioningStateTypeCreating)},
 		Target:     []string{string(storagecache.ProvisioningStateTypeSucceeded)},
-		Refresh:    resourceHPCCacheRefresh(ctx, client, resourceGroup, name),
-		Timeout:    d.Timeout(pluginsdk.TimeoutCreate),
+		Refresh:    resourceHPCCacheRefresh(ctx, client, id),
+		Timeout:    time.Until(deadline),
 	}
 
 	resp, err := state.WaitForStateContext(ctx)
 	if err != nil {
-		return resp.(storagecache.Cache), fmt.Errorf("waiting for the HPC Cache %q to be missing (Resource Group %q): %+v", name, resourceGroup, err)
+		cache := resp.(storagecache.Cache)
+		return &cache, err
 	}
 
-	return resp.(storagecache.Cache), nil
+	cache := resp.(storagecache.Cache)
+	return &cache, nil
 }
 
-func resourceHPCCacheRefresh(ctx context.Context, client *storagecache.CachesClient, resourceGroup, name string) pluginsdk.StateRefreshFunc {
+func resourceHPCCacheRefresh(ctx context.Context, client *caches.CachesClient, id caches.CacheId) pluginsdk.StateRefreshFunc {
 	return func() (interface{}, string, error) {
-		resp, err := client.Get(ctx, resourceGroup, name)
+		resp, err := client.Get(ctx, id)
 		if err != nil {
-			if utils.ResponseWasNotFound(resp.Response) {
+			if response.WasNotFound(resp.HttpResponse) {
 				return resp, "NotFound", nil
 			}
 
-			return resp, "Error", fmt.Errorf("making Read request on HPC Cache %q (Resource Group %q): %+v", name, resourceGroup, err)
+			return resp, "Error", fmt.Errorf("retrieving %s: %+v", id, err)
 		}
 
-		return resp, string(resp.ProvisioningState), nil
+		if resp.Model == nil || resp.Model.Properties == nil {
+			return resp, "Error", fmt.Errorf("retrieving %s: model was nil", id)
+		}
+		if resp.Model.Properties.ProvisioningState == nil {
+			return resp, "Error", fmt.Errorf("retrieving %s: `properties.provisioningState` was nil", id)
+		}
+		return resp, string(*resp.Model.Properties.ProvisioningState), nil
 	}
 }

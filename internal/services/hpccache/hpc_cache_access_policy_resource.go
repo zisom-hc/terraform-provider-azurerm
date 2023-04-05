@@ -154,7 +154,7 @@ func resourceHPCCacheAccessPolicyCreateUpdate(d *pluginsdk.ResourceData, meta in
 	}
 
 	if d.IsNewResource() {
-		p := CacheGetAccessPolicyByName(*policies, id.Name)
+		p := getAccessPolicyByName(*policies, id.Name)
 		if p != nil {
 			return tf.ImportAsExistsError("azurerm_hpc_cache_access_policy", id.ID())
 		}
@@ -223,7 +223,7 @@ func resourceHPCCacheAccessPolicyRead(d *pluginsdk.ResourceData, meta interface{
 		return clearId(fmt.Sprintf("The containing HPC Cache %q has nil AccessPolicies", cacheId))
 	}
 
-	p := CacheGetAccessPolicyByName(*policies, id.Name)
+	p := getAccessPolicyByName(*policies, id.Name)
 	if p == nil {
 		return clearId(fmt.Sprintf("The %q was not found", id))
 	}
@@ -275,7 +275,7 @@ func resourceHPCCacheAccessPolicyDelete(d *pluginsdk.ResourceData, meta interfac
 		return nil
 	}
 
-	*policies = CacheDeleteAccessPolicyByName(*policies, id.Name)
+	*policies = deleteAccessPolicyByName(*policies, id.Name)
 
 	future, err := client.CreateOrUpdate(ctx, id.ResourceGroup, id.CacheName, &existCache)
 	if err != nil {

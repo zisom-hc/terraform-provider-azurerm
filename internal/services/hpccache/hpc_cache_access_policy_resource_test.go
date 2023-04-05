@@ -121,7 +121,7 @@ func (r HPCCacheAccessPolicyResource) Exists(ctx context.Context, clients *clien
 		return utils.Bool(false), nil
 	}
 
-	return utils.Bool(hpccache.CacheGetAccessPolicyByName(*policies, id.Name) != nil), nil
+	return utils.Bool(hpccache.getAccessPolicyByName(*policies, id.Name) != nil), nil
 }
 
 func (r HPCCacheAccessPolicyResource) basic(data acceptance.TestData) string {
