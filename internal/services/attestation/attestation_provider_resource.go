@@ -8,7 +8,6 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/services/attestation/2020-10-01/attestation"
 	"github.com/hashicorp/go-azure-helpers/lang/response"
 	"github.com/hashicorp/go-azure-helpers/resourcemanager/commonschema"
 	"github.com/hashicorp/go-azure-helpers/resourcemanager/location"
@@ -20,6 +19,7 @@ import (
 	"github.com/hashicorp/terraform-provider-azurerm/internal/tf/pluginsdk"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/tf/validation"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/timeouts"
+	"github.com/tombuildsstuff/kermit/sdk/attestation/2022-08-01/attestation"
 )
 
 func resourceAttestationProvider() *pluginsdk.Resource {
@@ -82,9 +82,9 @@ func resourceAttestationProvider() *pluginsdk.Resource {
 							Type:     pluginsdk.TypeString,
 							Required: true,
 							ValidateFunc: validation.StringInSlice([]string{
-								string(attestation.OpenEnclave),
-								string(attestation.SgxEnclave),
-								string(attestation.Tpm),
+								string(attestation.TypeOpenEnclave),
+								string(attestation.TypeSgxEnclave),
+								string(attestation.TypeTpm),
 							}, false),
 						},
 

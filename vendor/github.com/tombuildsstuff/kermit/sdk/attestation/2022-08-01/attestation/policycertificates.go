@@ -8,11 +8,12 @@ package attestation
 
 import (
 	"context"
+	"net/http"
+
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/Azure/go-autorest/autorest/validation"
 	"github.com/Azure/go-autorest/tracing"
-	"net/http"
 )
 
 // PolicyCertificatesClient is the describes the interface for the per-tenant enclave service.
@@ -75,7 +76,7 @@ func (client PolicyCertificatesClient) AddPreparer(ctx context.Context, instance
 		"instanceUrl": instanceURL,
 	}
 
-	const APIVersion = "2020-10-01"
+	const APIVersion = "2022-08-01"
 	queryParameters := map[string]interface{}{
 		"api-version": APIVersion,
 	}
@@ -150,7 +151,7 @@ func (client PolicyCertificatesClient) GetPreparer(ctx context.Context, instance
 		"instanceUrl": instanceURL,
 	}
 
-	const APIVersion = "2020-10-01"
+	const APIVersion = "2022-08-01"
 	queryParameters := map[string]interface{}{
 		"api-version": APIVersion,
 	}
@@ -231,7 +232,7 @@ func (client PolicyCertificatesClient) RemovePreparer(ctx context.Context, insta
 		"instanceUrl": instanceURL,
 	}
 
-	const APIVersion = "2020-10-01"
+	const APIVersion = "2022-08-01"
 	queryParameters := map[string]interface{}{
 		"api-version": APIVersion,
 	}

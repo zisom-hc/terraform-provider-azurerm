@@ -11,7 +11,7 @@ import (
 )
 
 // The package's fully qualified name.
-const fqdn = "github.com/Azure/azure-sdk-for-go/services/attestation/2020-10-01/attestation"
+const fqdn = "home/runner/work/kermit/kermit/sdk/attestation/2022-08-01/attestation"
 
 // AttestOpenEnclaveRequest attestation request for Intel SGX enclaves
 type AttestOpenEnclaveRequest struct {
@@ -23,6 +23,22 @@ type AttestOpenEnclaveRequest struct {
 	InitTimeData *InitTimeData `json:"initTimeData,omitempty"`
 	// DraftPolicyForAttestation - Attest against the provided draft policy. Note that the resulting token cannot be validated.
 	DraftPolicyForAttestation *string `json:"draftPolicyForAttestation,omitempty"`
+	// Nonce - Nonce for incoming request - emitted in the generated attestation token
+	Nonce *string `json:"nonce,omitempty"`
+}
+
+// AttestSevSnpVMRequest attestation request for AMD SEV SNP Virtual Machine
+type AttestSevSnpVMRequest struct {
+	// Report - Hardware rooted report of the virtual machine being attested along with the signing certificate chain and optionally, additional endorsements
+	Report *string `json:"report,omitempty"`
+	// RuntimeData - Runtime data provided by the enclave at the time of report generation. The MAA will verify that the run time data is known to the attestation target.
+	RuntimeData *RuntimeData `json:"runtimeData,omitempty"`
+	// InitTimeData - Initialization data provided by the enclave at the time of report generation. The MAA will verify that the init time data is known to the attestation target.
+	InitTimeData *InitTimeData `json:"initTimeData,omitempty"`
+	// DraftPolicyForAttestation - Attest against the provided draft policy. Note that the resulting token cannot be validated.
+	DraftPolicyForAttestation *string `json:"draftPolicyForAttestation,omitempty"`
+	// Nonce - Nonce for incoming request - emitted in the generated attestation token
+	Nonce *string `json:"nonce,omitempty"`
 }
 
 // AttestSgxEnclaveRequest attestation request for Intel SGX enclaves
@@ -35,6 +51,8 @@ type AttestSgxEnclaveRequest struct {
 	InitTimeData *InitTimeData `json:"initTimeData,omitempty"`
 	// DraftPolicyForAttestation - Attest against the provided draft policy. Note that the resulting token cannot be validated.
 	DraftPolicyForAttestation *string `json:"draftPolicyForAttestation,omitempty"`
+	// Nonce - Nonce for incoming request - emitted in the generated attestation token
+	Nonce *string `json:"nonce,omitempty"`
 }
 
 // CertificateManagementBody the body of the JWT used for the PolicyCertificates APIs
@@ -56,12 +74,14 @@ type CloudErrorBody struct {
 	Message *string `json:"message,omitempty"`
 }
 
-// InitTimeData defines the "initialization time data" used to provision the attestation target for use by
-// the MAA
+// InitTimeData initialization time data are a conduit for any configuration information that is unknown
+// when building the Trusted Execution Environment (TEE) and is defined at TEE launch time. This data can
+// be used with confidential container or VM scenarios to capture configuration settings such as disk
+// volume content, network configuration, etc.
 type InitTimeData struct {
-	// Data - UTF-8 encoded Initialization Data passed into the trusted environment when it is created. (a URL-encoded base64 string)
+	// Data - Initialization time data are passed into the Trusted Execution Environment (TEE) when it is created. For an Icelake SGX quote, the SHA256 hash of the InitTimeData must match the lower 32 bytes of the quote's "config id" attribute. For a SEV-SNP quote, the SHA256 hash of the InitTimeData must match the quote's "host data" attribute. (a URL-encoded base64 string)
 	Data *string `json:"data,omitempty"`
-	// DataType - The type of data contained within the "data" field. Possible values include: 'Binary', 'JSON'
+	// DataType - The type of data contained within the "data" field. Possible values include: 'DataTypeBinary', 'DataTypeJSON'
 	DataType DataType `json:"dataType,omitempty"`
 }
 
@@ -139,11 +159,28 @@ type JSONWebKeySet struct {
 	Keys *[]JSONWebKey `json:"keys,omitempty"`
 }
 
+// OpenIDConfigurationResponse the response to the OpenID metadata description document API
+type OpenIDConfigurationResponse struct {
+	autorest.Response `json:"-"`
+	// ResponseTypesSupported - Types supported in the OpenID metadata API
+	ResponseTypesSupported *[]string `json:"response_types_supported,omitempty"`
+	// IDTokenSigningAlgValuesSupported - List of the supported signing algorithms
+	IDTokenSigningAlgValuesSupported *[]string `json:"id_token_signing_alg_values_supported,omitempty"`
+	// RevocationEndpoint - Revocation endpoint
+	RevocationEndpoint *string `json:"revocation_endpoint,omitempty"`
+	// Issuer - Issuer tenant base endpoint
+	Issuer *string `json:"issuer,omitempty"`
+	// JwksURI - The URI to retrieve the signing keys
+	JwksURI *string `json:"jwks_uri,omitempty"`
+	// ClaimsSupported - Set of claims supported by the OpenID metadata endpoint
+	ClaimsSupported *[]string `json:"claims_supported,omitempty"`
+}
+
 // PolicyCertificatesModificationResult the result of a policy certificate modification
 type PolicyCertificatesModificationResult struct {
 	// CertificateThumbprint - Hex encoded SHA1 Hash of the binary representation certificate which was added or removed
 	CertificateThumbprint *string `json:"x-ms-certificate-thumbprint,omitempty"`
-	// CertificateResolution - The result of the operation. Possible values include: 'IsPresent', 'IsAbsent'
+	// CertificateResolution - The result of the operation. Possible values include: 'CertificateModificationIsPresent', 'CertificateModificationIsAbsent'
 	CertificateResolution CertificateModification `json:"x-ms-policycertificates-result,omitempty"`
 }
 
@@ -176,7 +213,7 @@ type PolicyResponse struct {
 
 // PolicyResult the result of a policy certificate modification
 type PolicyResult struct {
-	// PolicyResolution - The result of the operation. Possible values include: 'Updated', 'Removed'
+	// PolicyResolution - The result of the operation. Possible values include: 'PolicyModificationUpdated', 'PolicyModificationRemoved'
 	PolicyResolution PolicyModification `json:"x-ms-policy-result,omitempty"`
 	// PolicyTokenHash - The SHA256 hash of the policy object modified (a URL-encoded base64 string)
 	PolicyTokenHash *string `json:"x-ms-policy-token-hash,omitempty"`
@@ -265,18 +302,13 @@ type Result struct {
 	DeprecatedRpData *string `json:"rp_data,omitempty"`
 }
 
-// RuntimeData defines the "run time data" provided by the attestation target for use by the MAA
+// RuntimeData runtime data are a conduit for any information defined by the Trusted Execution Environment
+// (TEE) when actually running.
 type RuntimeData struct {
-	// Data - UTF-8 encoded Runtime Data generated by the trusted environment (a URL-encoded base64 string)
+	// Data - Runtime data are generated by the Trusted Execution Environment (TEE). For an SGX quote (Coffeelake or Icelake), the SHA256 hash of the RuntimeData must match the lower 32 bytes of the quote's "report data" attribute. For a SEV-SNP quote, the SHA256 hash of the RuntimeData must match the quote's "report data" attribute. (a URL-encoded base64 string)
 	Data *string `json:"data,omitempty"`
-	// DataType - The type of data contained within the "data" field. Possible values include: 'Binary', 'JSON'
+	// DataType - The type of data contained within the "data" field. Possible values include: 'DataTypeBinary', 'DataTypeJSON'
 	DataType DataType `json:"dataType,omitempty"`
-}
-
-// SetObject ...
-type SetObject struct {
-	autorest.Response `json:"-"`
-	Value             interface{} `json:"value,omitempty"`
 }
 
 // StoredAttestationPolicy ...

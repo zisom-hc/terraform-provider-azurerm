@@ -8,10 +8,11 @@ package attestation
 
 import (
 	"context"
+	"net/http"
+
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/Azure/go-autorest/tracing"
-	"net/http"
 )
 
 // Client is the describes the interface for the per-tenant enclave service.
@@ -68,7 +69,7 @@ func (client Client) AttestOpenEnclavePreparer(ctx context.Context, instanceURL 
 		"instanceUrl": instanceURL,
 	}
 
-	const APIVersion = "2020-10-01"
+	const APIVersion = "2022-08-01"
 	queryParameters := map[string]interface{}{
 		"api-version": APIVersion,
 	}
@@ -92,6 +93,82 @@ func (client Client) AttestOpenEnclaveSender(req *http.Request) (*http.Response,
 // AttestOpenEnclaveResponder handles the response to the AttestOpenEnclave request. The method always
 // closes the http.Response Body.
 func (client Client) AttestOpenEnclaveResponder(resp *http.Response) (result Response, err error) {
+	err = autorest.Respond(
+		resp,
+		azure.WithErrorUnlessStatusCode(http.StatusOK),
+		autorest.ByUnmarshallingJSON(&result),
+		autorest.ByClosing())
+	result.Response = autorest.Response{Response: resp}
+	return
+}
+
+// AttestSevSnpVM processes a SEV SNP Boot chain. The type of artifact produced is dependent upon attestation policy.
+// Parameters:
+// instanceURL - the attestation instance base URI, for example https://mytenant.attest.azure.net.
+// request - request object containing the quote
+func (client Client) AttestSevSnpVM(ctx context.Context, instanceURL string, request AttestSevSnpVMRequest) (result Response, err error) {
+	if tracing.IsEnabled() {
+		ctx = tracing.StartSpan(ctx, fqdn+"/Client.AttestSevSnpVM")
+		defer func() {
+			sc := -1
+			if result.Response.Response != nil {
+				sc = result.Response.Response.StatusCode
+			}
+			tracing.EndSpan(ctx, sc, err)
+		}()
+	}
+	req, err := client.AttestSevSnpVMPreparer(ctx, instanceURL, request)
+	if err != nil {
+		err = autorest.NewErrorWithError(err, "attestation.Client", "AttestSevSnpVM", nil, "Failure preparing request")
+		return
+	}
+
+	resp, err := client.AttestSevSnpVMSender(req)
+	if err != nil {
+		result.Response = autorest.Response{Response: resp}
+		err = autorest.NewErrorWithError(err, "attestation.Client", "AttestSevSnpVM", resp, "Failure sending request")
+		return
+	}
+
+	result, err = client.AttestSevSnpVMResponder(resp)
+	if err != nil {
+		err = autorest.NewErrorWithError(err, "attestation.Client", "AttestSevSnpVM", resp, "Failure responding to request")
+		return
+	}
+
+	return
+}
+
+// AttestSevSnpVMPreparer prepares the AttestSevSnpVM request.
+func (client Client) AttestSevSnpVMPreparer(ctx context.Context, instanceURL string, request AttestSevSnpVMRequest) (*http.Request, error) {
+	urlParameters := map[string]interface{}{
+		"instanceUrl": instanceURL,
+	}
+
+	const APIVersion = "2022-08-01"
+	queryParameters := map[string]interface{}{
+		"api-version": APIVersion,
+	}
+
+	preparer := autorest.CreatePreparer(
+		autorest.AsContentType("application/json; charset=utf-8"),
+		autorest.AsPost(),
+		autorest.WithCustomBaseURL("{instanceUrl}", urlParameters),
+		autorest.WithPath("/attest/SevSnpVm"),
+		autorest.WithJSON(request),
+		autorest.WithQueryParameters(queryParameters))
+	return preparer.Prepare((&http.Request{}).WithContext(ctx))
+}
+
+// AttestSevSnpVMSender sends the AttestSevSnpVM request. The method will close the
+// http.Response Body if it receives an error.
+func (client Client) AttestSevSnpVMSender(req *http.Request) (*http.Response, error) {
+	return client.Send(req, autorest.DoRetryForStatusCodes(client.RetryAttempts, client.RetryDuration, autorest.StatusCodesForRetry...))
+}
+
+// AttestSevSnpVMResponder handles the response to the AttestSevSnpVM request. The method always
+// closes the http.Response Body.
+func (client Client) AttestSevSnpVMResponder(resp *http.Response) (result Response, err error) {
 	err = autorest.Respond(
 		resp,
 		azure.WithErrorUnlessStatusCode(http.StatusOK),
@@ -145,7 +222,7 @@ func (client Client) AttestSgxEnclavePreparer(ctx context.Context, instanceURL s
 		"instanceUrl": instanceURL,
 	}
 
-	const APIVersion = "2020-10-01"
+	const APIVersion = "2022-08-01"
 	queryParameters := map[string]interface{}{
 		"api-version": APIVersion,
 	}
@@ -222,7 +299,7 @@ func (client Client) AttestTpmPreparer(ctx context.Context, instanceURL string, 
 		"instanceUrl": instanceURL,
 	}
 
-	const APIVersion = "2020-10-01"
+	const APIVersion = "2022-08-01"
 	queryParameters := map[string]interface{}{
 		"api-version": APIVersion,
 	}

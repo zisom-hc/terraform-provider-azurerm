@@ -1,4 +1,4 @@
-// Package attestation implements the Azure ARM Attestation service API version 2020-10-01.
+// Package attestation implements the Azure ARM Attestation service API version 2022-08-01.
 //
 // Describes the interface for the per-tenant enclave service.
 package attestation

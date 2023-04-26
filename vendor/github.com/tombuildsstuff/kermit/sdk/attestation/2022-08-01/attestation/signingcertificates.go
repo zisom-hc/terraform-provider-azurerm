@@ -8,28 +8,29 @@ package attestation
 
 import (
 	"context"
+	"net/http"
+
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/Azure/go-autorest/tracing"
-	"net/http"
 )
 
-// MetadataConfigurationClient is the describes the interface for the per-tenant enclave service.
-type MetadataConfigurationClient struct {
+// SigningCertificatesClient is the describes the interface for the per-tenant enclave service.
+type SigningCertificatesClient struct {
 	BaseClient
 }
 
-// NewMetadataConfigurationClient creates an instance of the MetadataConfigurationClient client.
-func NewMetadataConfigurationClient() MetadataConfigurationClient {
-	return MetadataConfigurationClient{New()}
+// NewSigningCertificatesClient creates an instance of the SigningCertificatesClient client.
+func NewSigningCertificatesClient() SigningCertificatesClient {
+	return SigningCertificatesClient{New()}
 }
 
-// Get retrieves metadata about the attestation signing keys in use by the attestation service
+// Get retrieves metadata signing certificates in use by the attestation service
 // Parameters:
 // instanceURL - the attestation instance base URI, for example https://mytenant.attest.azure.net.
-func (client MetadataConfigurationClient) Get(ctx context.Context, instanceURL string) (result SetObject, err error) {
+func (client SigningCertificatesClient) Get(ctx context.Context, instanceURL string) (result JSONWebKeySet, err error) {
 	if tracing.IsEnabled() {
-		ctx = tracing.StartSpan(ctx, fqdn+"/MetadataConfigurationClient.Get")
+		ctx = tracing.StartSpan(ctx, fqdn+"/SigningCertificatesClient.Get")
 		defer func() {
 			sc := -1
 			if result.Response.Response != nil {
@@ -40,20 +41,20 @@ func (client MetadataConfigurationClient) Get(ctx context.Context, instanceURL s
 	}
 	req, err := client.GetPreparer(ctx, instanceURL)
 	if err != nil {
-		err = autorest.NewErrorWithError(err, "attestation.MetadataConfigurationClient", "Get", nil, "Failure preparing request")
+		err = autorest.NewErrorWithError(err, "attestation.SigningCertificatesClient", "Get", nil, "Failure preparing request")
 		return
 	}
 
 	resp, err := client.GetSender(req)
 	if err != nil {
 		result.Response = autorest.Response{Response: resp}
-		err = autorest.NewErrorWithError(err, "attestation.MetadataConfigurationClient", "Get", resp, "Failure sending request")
+		err = autorest.NewErrorWithError(err, "attestation.SigningCertificatesClient", "Get", resp, "Failure sending request")
 		return
 	}
 
 	result, err = client.GetResponder(resp)
 	if err != nil {
-		err = autorest.NewErrorWithError(err, "attestation.MetadataConfigurationClient", "Get", resp, "Failure responding to request")
+		err = autorest.NewErrorWithError(err, "attestation.SigningCertificatesClient", "Get", resp, "Failure responding to request")
 		return
 	}
 
@@ -61,7 +62,7 @@ func (client MetadataConfigurationClient) Get(ctx context.Context, instanceURL s
 }
 
 // GetPreparer prepares the Get request.
-func (client MetadataConfigurationClient) GetPreparer(ctx context.Context, instanceURL string) (*http.Request, error) {
+func (client SigningCertificatesClient) GetPreparer(ctx context.Context, instanceURL string) (*http.Request, error) {
 	urlParameters := map[string]interface{}{
 		"instanceUrl": instanceURL,
 	}
@@ -69,23 +70,23 @@ func (client MetadataConfigurationClient) GetPreparer(ctx context.Context, insta
 	preparer := autorest.CreatePreparer(
 		autorest.AsGet(),
 		autorest.WithCustomBaseURL("{instanceUrl}", urlParameters),
-		autorest.WithPath("/.well-known/openid-configuration"))
+		autorest.WithPath("/certs"))
 	return preparer.Prepare((&http.Request{}).WithContext(ctx))
 }
 
 // GetSender sends the Get request. The method will close the
 // http.Response Body if it receives an error.
-func (client MetadataConfigurationClient) GetSender(req *http.Request) (*http.Response, error) {
+func (client SigningCertificatesClient) GetSender(req *http.Request) (*http.Response, error) {
 	return client.Send(req, autorest.DoRetryForStatusCodes(client.RetryAttempts, client.RetryDuration, autorest.StatusCodesForRetry...))
 }
 
 // GetResponder handles the response to the Get request. The method always
 // closes the http.Response Body.
-func (client MetadataConfigurationClient) GetResponder(resp *http.Response) (result SetObject, err error) {
+func (client SigningCertificatesClient) GetResponder(resp *http.Response) (result JSONWebKeySet, err error) {
 	err = autorest.Respond(
 		resp,
 		azure.WithErrorUnlessStatusCode(http.StatusOK),
-		autorest.ByUnmarshallingJSON(&result.Value),
+		autorest.ByUnmarshallingJSON(&result),
 		autorest.ByClosing())
 	result.Response = autorest.Response{Response: resp}
 	return
