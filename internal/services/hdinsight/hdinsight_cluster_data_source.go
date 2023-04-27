@@ -5,14 +5,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
 	"github.com/hashicorp/go-azure-helpers/resourcemanager/commonschema"
 	"github.com/hashicorp/go-azure-helpers/resourcemanager/location"
+	"github.com/hashicorp/go-azure-helpers/resourcemanager/tags"
+	"github.com/hashicorp/go-azure-sdk/resource-manager/hdinsight/2018-06-01-preview/clusters"
+	"github.com/hashicorp/go-azure-sdk/resource-manager/hdinsight/2018-06-01-preview/configurations"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/clients"
-	"github.com/hashicorp/terraform-provider-azurerm/internal/services/hdinsight/parse"
-	"github.com/hashicorp/terraform-provider-azurerm/internal/tags"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/tf/pluginsdk"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/timeouts"
-	"github.com/hashicorp/terraform-provider-azurerm/utils"
 )
 
 func dataSourceHDInsightSparkCluster() *pluginsdk.Resource {
@@ -80,7 +82,7 @@ func dataSourceHDInsightSparkCluster() *pluginsdk.Resource {
 				},
 			},
 
-			"tags": tags.SchemaDataSource(),
+			"tags": commonschema.TagsDataSource(),
 
 			"edge_ssh_endpoint": {
 				Type:     pluginsdk.TypeString,
@@ -112,64 +114,69 @@ func dataSourceHDInsightClusterRead(d *pluginsdk.ResourceData, meta interface{})
 	ctx, cancel := timeouts.ForRead(meta.(*clients.Client).StopContext, d)
 	defer cancel()
 
-	id := parse.NewClusterID(subscriptionId, d.Get("resource_group_name").(string), d.Get("name").(string))
-	resp, err := clustersClient.Get(ctx, id.ResourceGroup, id.Name)
+	id := clusters.NewClusterID(subscriptionId, d.Get("resource_group_name").(string), d.Get("name").(string))
+
+	resp, err := clustersClient.Get(ctx, id)
 	if err != nil {
-		if utils.ResponseWasNotFound(resp.Response) {
+		if response.WasNotFound(resp.HttpResponse) {
 			return fmt.Errorf("%s was not found", id)
 		}
 
 		return fmt.Errorf("retrieving %s: %+v", id, err)
 	}
 
-	configuration, err := configurationsClient.Get(ctx, id.ResourceGroup, id.Name, "gateway")
+	configId := configurations.NewConfigurationID(subscriptionId, d.Get("resource_group_name").(string), d.Get("name").(string), "gateway")
+	configuration, err := configurationsClient.Get(ctx, configId)
 	if err != nil {
 		return fmt.Errorf("retrieving Configuration for %s: %+v", id, err)
 	}
 
 	d.SetId(id.ID())
 
-	d.Set("name", id.Name)
-	d.Set("resource_group_name", id.ResourceGroup)
-	d.Set("location", location.NormalizeNilable(resp.Location))
+	if m := resp.Model; m != nil {
+		p := m.Properties
 
-	if props := resp.Properties; props != nil {
-		d.Set("cluster_version", props.ClusterVersion)
-		d.Set("tier", string(props.Tier))
-		d.Set("tls_min_version", props.MinSupportedTLSVersion)
+		d.Set("name", m.Name)
+		d.Set("resource_group_name", id.ResourceGroupName)
+		d.Set("location", location.NormalizeNilable(m.Location))
 
-		if def := props.ClusterDefinition; def != nil {
-			d.Set("component_versions", flattenHDInsightsDataSourceComponentVersions(def.ComponentVersion))
-			if kind := def.Kind; kind != nil {
-				d.Set("kind", strings.ToLower(*kind))
-			}
-			if err := d.Set("gateway", FlattenHDInsightsConfigurations(configuration.Value, d)); err != nil {
-				return fmt.Errorf("flattening `gateway`: %+v", err)
-			}
+		d.Set("cluster_version", p.ClusterVersion)
+		d.Set("tier", string(pointer.From(p.Tier)))
+		d.Set("tls_min_version", p.MinSupportedTlsVersion)
+
+		def := p.ClusterDefinition
+		d.Set("component_versions", flattenHDInsightsDataSourceComponentVersions(def.ComponentVersion))
+		if kind := def.Kind; kind != nil {
+			d.Set("kind", strings.ToLower(*kind))
+		}
+		if err := d.Set("gateway", FlattenHDInsightsConfigurations(configuration.Value, d)); err != nil {
+			return fmt.Errorf("flattening `gateway`: %+v", err)
 		}
 
-		edgeNodeSshEndpoint := FindHDInsightConnectivityEndpoint("EDGESSH", props.ConnectivityEndpoints)
+		edgeNodeSshEndpoint := FindHDInsightConnectivityEndpoint("EDGESSH", p.ConnectivityEndpoints)
 		d.Set("edge_ssh_endpoint", edgeNodeSshEndpoint)
-		httpEndpoint := FindHDInsightConnectivityEndpoint("HTTPS", props.ConnectivityEndpoints)
+		httpEndpoint := FindHDInsightConnectivityEndpoint("HTTPS", p.ConnectivityEndpoints)
 		d.Set("https_endpoint", httpEndpoint)
-		sshEndpoint := FindHDInsightConnectivityEndpoint("SSH", props.ConnectivityEndpoints)
+		sshEndpoint := FindHDInsightConnectivityEndpoint("SSH", p.ConnectivityEndpoints)
 		d.Set("ssh_endpoint", sshEndpoint)
-		kafkaRestProxyEndpoint := FindHDInsightConnectivityEndpoint("KafkaRestProxyPublicEndpoint", props.ConnectivityEndpoints)
+		kafkaRestProxyEndpoint := FindHDInsightConnectivityEndpoint("KafkaRestProxyPublicEndpoint", p.ConnectivityEndpoints)
 		d.Set("kafka_rest_proxy_endpoint", kafkaRestProxyEndpoint)
+
+		return tags.FlattenAndSet(d, m.Tags)
 	}
 
-	return tags.FlattenAndSet(d, resp.Tags)
+	return nil
 }
 
-func flattenHDInsightsDataSourceComponentVersions(input map[string]*string) map[string]string {
+func flattenHDInsightsDataSourceComponentVersions(input *map[string]string) map[string]string {
 	output := make(map[string]string)
 
-	for k, v := range input {
-		if v == nil {
-			continue
-		}
+	if input != nil {
+		return output
+	}
 
-		output[k] = *v
+	for k, v := range *input {
+		output[k] = v
 	}
 
 	return output

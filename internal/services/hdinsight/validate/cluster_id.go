@@ -4,8 +4,6 @@ package validate
 
 import (
 	"fmt"
-
-	"github.com/hashicorp/terraform-provider-azurerm/internal/services/hdinsight/parse"
 )
 
 func ClusterID(input interface{}, key string) (warnings []string, errors []error) {
@@ -15,7 +13,7 @@ func ClusterID(input interface{}, key string) (warnings []string, errors []error
 		return
 	}
 
-	if _, err := parse.ClusterID(v); err != nil {
+	if _, err := clusters.ParseClusterID(v); err != nil {
 		errors = append(errors, err)
 	}
 

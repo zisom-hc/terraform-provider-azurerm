@@ -6,13 +6,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/services/hdinsight/mgmt/2018-06-01/hdinsight" // nolint: staticcheck
+	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	"github.com/hashicorp/go-azure-helpers/lang/response"
 	"github.com/hashicorp/go-azure-helpers/resourcemanager/commonschema"
+	"github.com/hashicorp/go-azure-helpers/resourcemanager/tags"
+	"github.com/hashicorp/go-azure-sdk/resource-manager/hdinsight/2018-06-01-preview/clusters"
+	"github.com/hashicorp/go-azure-sdk/resource-manager/hdinsight/2018-06-01-preview/configurations"
 	"github.com/hashicorp/terraform-provider-azurerm/helpers/azure"
 	"github.com/hashicorp/terraform-provider-azurerm/helpers/tf"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/clients"
-	"github.com/hashicorp/terraform-provider-azurerm/internal/services/hdinsight/parse"
-	"github.com/hashicorp/terraform-provider-azurerm/internal/tags"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/tf/pluginsdk"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/timeouts"
 	"github.com/hashicorp/terraform-provider-azurerm/utils"
@@ -25,7 +27,7 @@ var hdInsightSparkClusterHeadNodeDefinition = HDInsightNodeDefinition{
 	MinInstanceCount:         2,
 	MaxInstanceCount:         utils.Int(2),
 	CanSpecifyDisks:          false,
-	FixedTargetInstanceCount: utils.Int32(int32(2)),
+	FixedTargetInstanceCount: pointer.To(int64(2)),
 }
 
 var hdInsightSparkClusterWorkerNodeDefinition = HDInsightNodeDefinition{
@@ -40,7 +42,7 @@ var hdInsightSparkClusterZookeeperNodeDefinition = HDInsightNodeDefinition{
 	CanSpecifyInstanceCount:  false,
 	MinInstanceCount:         3,
 	MaxInstanceCount:         utils.Int(3),
-	FixedTargetInstanceCount: utils.Int32(int32(3)),
+	FixedTargetInstanceCount: pointer.To(int64(3)),
 	CanSpecifyDisks:          false,
 }
 
@@ -52,7 +54,7 @@ func resourceHDInsightSparkCluster() *pluginsdk.Resource {
 		Delete: hdinsightClusterDelete("Spark"),
 
 		Importer: pluginsdk.ImporterValidatingResourceId(func(id string) error {
-			_, err := parse.ClusterID(id)
+			_, err := clusters.ParseClusterID(id)
 			return err
 		}),
 
@@ -129,7 +131,7 @@ func resourceHDInsightSparkCluster() *pluginsdk.Resource {
 				},
 			},
 
-			"tags": tags.Schema(),
+			"tags": commonschema.Tags(),
 
 			"https_endpoint": {
 				Type:     pluginsdk.TypeString,
@@ -155,23 +157,21 @@ func resourceHDInsightSparkClusterCreate(d *pluginsdk.ResourceData, meta interfa
 	ctx, cancel := timeouts.ForCreate(meta.(*clients.Client).StopContext, d)
 	defer cancel()
 
-	name := d.Get("name").(string)
-	resourceGroup := d.Get("resource_group_name").(string)
-	id := parse.NewClusterID(subscriptionId, resourceGroup, name)
-	location := azure.NormalizeLocation(d.Get("location").(string))
-	clusterVersion := d.Get("cluster_version").(string)
-	t := d.Get("tags").(map[string]interface{})
-	tier := hdinsight.Tier(d.Get("tier").(string))
-	tls := d.Get("tls_min_version").(string)
+	id := clusters.NewClusterID(subscriptionId, d.Get("resource_group_name").(string), d.Get("name").(string))
 
-	componentVersionsRaw := d.Get("component_version").([]interface{})
-	componentVersions := expandHDInsightSparkComponentVersion(componentVersionsRaw)
+	existing, err := client.Get(ctx, id)
+	if err != nil {
+		if !response.WasNotFound(existing.HttpResponse) {
+			return fmt.Errorf("checking for presence of existing HDInsight Spark Cluster %s: %+v", id.String(), err)
+		}
+	}
 
-	gatewayRaw := d.Get("gateway").([]interface{})
-	configurations := ExpandHDInsightsConfigurations(gatewayRaw)
+	if !response.WasNotFound(existing.HttpResponse) {
+		return tf.ImportAsExistsError("azurerm_hdinsight_spark_cluster", id.ID())
+	}
 
-	metastoresRaw := d.Get("metastores").([]interface{})
-	metastores := expandHDInsightsMetastore(metastoresRaw)
+	configurations := ExpandHDInsightsConfigurations(d.Get("gateway").([]interface{}))
+	metastores := expandHDInsightsMetastore(d.Get("metastores").([]interface{}))
 	for k, v := range metastores {
 		configurations[k] = v
 	}
@@ -183,60 +183,45 @@ func resourceHDInsightSparkClusterCreate(d *pluginsdk.ResourceData, meta interfa
 		return fmt.Errorf("expanding `storage_account`: %s", err)
 	}
 
-	networkPropertiesRaw := d.Get("network").([]interface{})
-	networkProperties := ExpandHDInsightsNetwork(networkPropertiesRaw)
-
 	sparkRoles := hdInsightRoleDefinition{
 		HeadNodeDef:      hdInsightSparkClusterHeadNodeDefinition,
 		WorkerNodeDef:    hdInsightSparkClusterWorkerNodeDefinition,
 		ZookeeperNodeDef: hdInsightSparkClusterZookeeperNodeDefinition,
 	}
 	rolesRaw := d.Get("roles").([]interface{})
+
 	roles, err := expandHDInsightRoles(rolesRaw, sparkRoles)
 	if err != nil {
 		return fmt.Errorf("expanding `roles`: %+v", err)
 	}
 
-	computeIsolationProperties := ExpandHDInsightComputeIsolationProperties(d.Get("compute_isolation").([]interface{}))
-
-	existing, err := client.Get(ctx, resourceGroup, name)
-	if err != nil {
-		if !utils.ResponseWasNotFound(existing.Response) {
-			return fmt.Errorf("checking for presence of existing HDInsight Spark Cluster %q (Resource Group %q): %+v", name, resourceGroup, err)
-		}
-	}
-
-	if !utils.ResponseWasNotFound(existing.Response) {
-		return tf.ImportAsExistsError("azurerm_hdinsight_spark_cluster", id.ID())
-	}
-
 	encryptionInTransit := d.Get("encryption_in_transit_enabled").(bool)
 
-	params := hdinsight.ClusterCreateParametersExtended{
-		Location: utils.String(location),
-		Properties: &hdinsight.ClusterCreateProperties{
-			Tier:           tier,
-			OsType:         hdinsight.OSTypeLinux,
-			ClusterVersion: utils.String(clusterVersion),
-			EncryptionInTransitProperties: &hdinsight.EncryptionInTransitProperties{
+	params := clusters.ClusterCreateParametersExtended{
+		Location: pointer.To(azure.NormalizeLocation(d.Get("location").(string))),
+		Properties: &clusters.ClusterCreateProperties{
+			Tier:           pointer.To(clusters.Tier(d.Get("tier").(string))),
+			OsType:         pointer.To(clusters.OSTypeLinux),
+			ClusterVersion: pointer.To(d.Get("cluster_version").(string)),
+			EncryptionInTransitProperties: &clusters.EncryptionInTransitProperties{
 				IsEncryptionInTransitEnabled: &encryptionInTransit,
 			},
-			MinSupportedTLSVersion: utils.String(tls),
-			NetworkProperties:      networkProperties,
-			ClusterDefinition: &hdinsight.ClusterDefinition{
-				Kind:             utils.String("Spark"),
-				ComponentVersion: componentVersions,
-				Configurations:   configurations,
+			MinSupportedTlsVersion: pointer.To(d.Get("tls_min_version").(string)),
+			NetworkProperties:      ExpandHDInsightsNetwork(d.Get("network").([]interface{})),
+			ClusterDefinition: &clusters.ClusterDefinition{
+				Kind:             pointer.To("Spark"),
+				ComponentVersion: expandHDInsightSparkComponentVersion(d.Get("component_version").([]interface{})),
+				Configurations:   pointer.To(interface{}(configurations)),
 			},
-			StorageProfile: &hdinsight.StorageProfile{
+			StorageProfile: &clusters.StorageProfile{
 				Storageaccounts: storageAccounts,
 			},
-			ComputeProfile: &hdinsight.ComputeProfile{
+			ComputeProfile: &clusters.ComputeProfile{
 				Roles: roles,
 			},
-			ComputeIsolationProperties: computeIsolationProperties,
+			ComputeIsolationProperties: ExpandHDInsightComputeIsolationProperties(d.Get("compute_isolation").([]interface{})),
 		},
-		Tags:     tags.Expand(t),
+		Tags:     tags.Expand(d.Get("tags").(map[string]interface{})),
 		Identity: identity,
 	}
 
@@ -250,32 +235,24 @@ func resourceHDInsightSparkClusterCreate(d *pluginsdk.ResourceData, meta interfa
 	if v, ok := d.GetOk("security_profile"); ok {
 		params.Properties.SecurityProfile = ExpandHDInsightSecurityProfile(v.([]interface{}))
 
-		params.Identity = &hdinsight.ClusterIdentity{
-			Type:                   hdinsight.ResourceIdentityTypeUserAssigned,
-			UserAssignedIdentities: make(map[string]*hdinsight.ClusterIdentityUserAssignedIdentitiesValue),
+		params.Identity = &clusters.ClusterIdentity{
+			Type:                   clusters.ResourceIdentityTypeUserAssigned,
+			UserAssignedIdentities: make(map[string]*clusters.ClusterIdentityUserAssignedIdentitiesValue),
 		}
 
 		if params.Properties.SecurityProfile != nil && params.Properties.SecurityProfile.MsiResourceID != nil {
-			params.Identity.UserAssignedIdentities[*params.Properties.SecurityProfile.MsiResourceID] = &hdinsight.ClusterIdentityUserAssignedIdentitiesValue{}
+			params.Identity.UserAssignedIdentities[*params.Properties.SecurityProfile.MsiResourceID] = &clusters.ClusterIdentityUserAssignedIdentitiesValue{}
 		}
 	}
 
-	future, err := client.Create(ctx, resourceGroup, name, params)
+	err = client.CreateThenPoll(ctx, id, params)
 	if err != nil {
-		return fmt.Errorf("creating HDInsight Spark Cluster %q (Resource Group %q): %+v", name, resourceGroup, err)
+		return fmt.Errorf("creating HDInsight Spark Cluster %s: %+v", id.String(), err)
 	}
 
-	if err := future.WaitForCompletionRef(ctx, client.Client); err != nil {
-		return fmt.Errorf("waiting for creation of HDInsight Spark Cluster %q (Resource Group %q): %+v", name, resourceGroup, err)
-	}
-
-	read, err := client.Get(ctx, resourceGroup, name)
+	_, err = client.Get(ctx, id)
 	if err != nil {
-		return fmt.Errorf("retrieving HDInsight Spark Cluster %q (Resource Group %q): %+v", name, resourceGroup, err)
-	}
-
-	if read.ID == nil {
-		return fmt.Errorf("reading ID for HDInsight Spark Cluster %q (Resource Group %q)", name, resourceGroup)
+		return fmt.Errorf("retrieving HDInsight Spark Cluster %s: %+v", id.String(), err)
 	}
 
 	d.SetId(id.ID())
@@ -305,135 +282,130 @@ func resourceHDInsightSparkClusterRead(d *pluginsdk.ResourceData, meta interface
 	ctx, cancel := timeouts.ForRead(meta.(*clients.Client).StopContext, d)
 	defer cancel()
 
-	id, err := parse.ClusterID(d.Id())
+	id, err := clusters.ParseClusterID(d.Id())
 	if err != nil {
 		return err
 	}
 
-	resourceGroup := id.ResourceGroup
-	name := id.Name
-
-	resp, err := clustersClient.Get(ctx, resourceGroup, name)
+	resp, err := clustersClient.Get(ctx, *id)
 	if err != nil {
-		if utils.ResponseWasNotFound(resp.Response) {
+		if response.WasNotFound(resp.HttpResponse) {
 			log.Printf("[DEBUG] HDInsight Spark Cluster %q was not found in Resource Group %q - removing from state!", name, resourceGroup)
 			d.SetId("")
 			return nil
 		}
 
-		return fmt.Errorf("retrieving HDInsight Spark Cluster %q (Resource Group %q): %+v", name, resourceGroup, err)
+		return fmt.Errorf("retrieving HDInsight Spark Cluster %s: %+v", id.String(), err)
 	}
 
-	// Each call to configurationsClient methods is HTTP request. Getting all settings in one operation
-	configurations, err := configurationsClient.List(ctx, resourceGroup, name)
+	configId := configurations.NewConfigurationID(id.SubscriptionId, id.ResourceGroupName, id.ClusterName, "gateway")
+	configResp, err := configurationsClient.Get(ctx, configId)
 	if err != nil {
-		return fmt.Errorf("retrieving Configuration for HDInsight Spark Cluster %q (Resource Group %q): %+v", name, resourceGroup, err)
+		return fmt.Errorf("retrieving Configuration for %s: %+v", id, err)
 	}
 
-	gateway, exists := configurations.Configurations["gateway"]
-	if !exists {
-		return fmt.Errorf("retrieving gateway for HDInsight Spark Cluster %q (Resource Group %q): %+v", name, resourceGroup, err)
-	}
+	if m := configResp.Model; m != nil {
 
-	d.Set("name", name)
-	d.Set("resource_group_name", resourceGroup)
-	if location := resp.Location; location != nil {
-		d.Set("location", azure.NormalizeLocation(*location))
-	}
+		d.Set("name", id.ClusterName)
+		d.Set("resource_group_name", id.ClusterName)
+		d.Set("location", azure.NormalizeLocation(p.Location))
 
-	// storage_account isn't returned so I guess we just leave it ¯\_(ツ)_/¯
-	if props := resp.Properties; props != nil {
-		tier := ""
-		// the Azure API is inconsistent here, so rewrite this into the casing we expect
-		for _, v := range hdinsight.PossibleTierValues() {
-			if strings.EqualFold(string(v), string(props.Tier)) {
-				tier = string(v)
+		// storage_account isn't returned so I guess we just leave it ¯\_(ツ)_/¯
+		if props := resp.Properties; props != nil {
+			tier := ""
+			// the Azure API is inconsistent here, so rewrite this into the casing we expect
+			for _, v := range clusters.PossibleTierValues() {
+				if strings.EqualFold(string(v), string(props.Tier)) {
+					tier = string(v)
+				}
 			}
-		}
-		d.Set("tier", tier)
-		d.Set("cluster_version", props.ClusterVersion)
-		d.Set("tls_min_version", props.MinSupportedTLSVersion)
+			d.Set("tier", tier)
+			d.Set("cluster_version", props.ClusterVersion)
+			d.Set("tls_min_version", props.MinSupportedTlsVersion)
 
-		if def := props.ClusterDefinition; def != nil {
-			if err := d.Set("component_version", flattenHDInsightSparkComponentVersion(def.ComponentVersion)); err != nil {
-				return fmt.Errorf("flattening `component_version`: %+v", err)
-			}
+			if def := props.ClusterDefinition; def != nil {
+				if err := d.Set("component_version", flattenHDInsightSparkComponentVersion(def.ComponentVersion)); err != nil {
+					return fmt.Errorf("flattening `component_version`: %+v", err)
+				}
 
-			if err := d.Set("gateway", FlattenHDInsightsConfigurations(gateway, d)); err != nil {
-				return fmt.Errorf("flattening `gateway`: %+v", err)
+				if err := d.Set("gateway", FlattenHDInsightsConfigurations(gateway, d)); err != nil {
+					return fmt.Errorf("flattening `gateway`: %+v", err)
+				}
+
+				flattenHDInsightsMetastores(d, configurations.Configurations)
 			}
 
-			flattenHDInsightsMetastores(d, configurations.Configurations)
-		}
+			sparkRoles := hdInsightRoleDefinition{
+				HeadNodeDef:      hdInsightSparkClusterHeadNodeDefinition,
+				WorkerNodeDef:    hdInsightSparkClusterWorkerNodeDefinition,
+				ZookeeperNodeDef: hdInsightSparkClusterZookeeperNodeDefinition,
+			}
 
-		sparkRoles := hdInsightRoleDefinition{
-			HeadNodeDef:      hdInsightSparkClusterHeadNodeDefinition,
-			WorkerNodeDef:    hdInsightSparkClusterWorkerNodeDefinition,
-			ZookeeperNodeDef: hdInsightSparkClusterZookeeperNodeDefinition,
-		}
+			if props.EncryptionInTransitProperties != nil {
+				d.Set("encryption_in_transit_enabled", props.EncryptionInTransitProperties.IsEncryptionInTransitEnabled)
+			}
 
-		if props.EncryptionInTransitProperties != nil {
-			d.Set("encryption_in_transit_enabled", props.EncryptionInTransitProperties.IsEncryptionInTransitEnabled)
-		}
+			if props.DiskEncryptionProperties != nil {
+				diskEncryptionProps, err := FlattenHDInsightsDiskEncryptionProperties(*props.DiskEncryptionProperties)
+				if err != nil {
+					return err
+				}
+				if err := d.Set("disk_encryption", diskEncryptionProps); err != nil {
+					return fmt.Errorf("flattening setting `disk_encryption`: %+v", err)
+				}
+			}
 
-		if props.DiskEncryptionProperties != nil {
-			diskEncryptionProps, err := FlattenHDInsightsDiskEncryptionProperties(*props.DiskEncryptionProperties)
+			if props.NetworkProperties != nil {
+				if err := d.Set("network", FlattenHDInsightsNetwork(props.NetworkProperties)); err != nil {
+					return fmt.Errorf("flattening `network`: %+v", err)
+				}
+			}
+
+			flattenedRoles := flattenHDInsightRoles(d, props.ComputeProfile, sparkRoles)
+			if err := d.Set("roles", flattenedRoles); err != nil {
+				return fmt.Errorf("flattening `roles`: %+v", err)
+			}
+
+			if props.ComputeIsolationProperties != nil {
+				if err := d.Set("compute_isolation", FlattenHDInsightComputeIsolationProperties(*props.ComputeIsolationProperties)); err != nil {
+					return fmt.Errorf("failed setting `compute_isolation`: %+v", err)
+				}
+			}
+
+			httpEndpoint := FindHDInsightConnectivityEndpoint("HTTPS", props.ConnectivityEndpoints)
+			d.Set("https_endpoint", httpEndpoint)
+			sshEndpoint := FindHDInsightConnectivityEndpoint("SSH", props.ConnectivityEndpoints)
+			d.Set("ssh_endpoint", sshEndpoint)
+
+			monitor, err := extensionsClient.GetMonitoringStatus(ctx, resourceGroup, name)
 			if err != nil {
-				return err
+				return fmt.Errorf("reading monitor configuration for HDInsight Hadoop Cluster %s: %+v", id.String(), err)
 			}
-			if err := d.Set("disk_encryption", diskEncryptionProps); err != nil {
-				return fmt.Errorf("flattening setting `disk_encryption`: %+v", err)
+
+			d.Set("monitor", flattenHDInsightMonitoring(monitor))
+
+			extension, err := extensionsClient.GetAzureMonitorStatus(ctx, resourceGroup, name)
+			if err != nil {
+				return fmt.Errorf("reading extension configuration for HDInsight Hadoop Cluster %q (Resource Group %q) %+v", name, resourceGroup, err)
 			}
-		}
 
-		if props.NetworkProperties != nil {
-			if err := d.Set("network", FlattenHDInsightsNetwork(props.NetworkProperties)); err != nil {
-				return fmt.Errorf("flattening `network`: %+v", err)
-			}
-		}
+			d.Set("extension", flattenHDInsightAzureMonitor(extension))
 
-		flattenedRoles := flattenHDInsightRoles(d, props.ComputeProfile, sparkRoles)
-		if err := d.Set("roles", flattenedRoles); err != nil {
-			return fmt.Errorf("flattening `roles`: %+v", err)
-		}
-
-		if props.ComputeIsolationProperties != nil {
-			if err := d.Set("compute_isolation", FlattenHDInsightComputeIsolationProperties(*props.ComputeIsolationProperties)); err != nil {
-				return fmt.Errorf("failed setting `compute_isolation`: %+v", err)
+			if err := d.Set("security_profile", flattenHDInsightSecurityProfile(props.SecurityProfile, d)); err != nil {
+				return fmt.Errorf("setting `security_profile`: %+v", err)
 			}
 		}
 
-		httpEndpoint := FindHDInsightConnectivityEndpoint("HTTPS", props.ConnectivityEndpoints)
-		d.Set("https_endpoint", httpEndpoint)
-		sshEndpoint := FindHDInsightConnectivityEndpoint("SSH", props.ConnectivityEndpoints)
-		d.Set("ssh_endpoint", sshEndpoint)
-
-		monitor, err := extensionsClient.GetMonitoringStatus(ctx, resourceGroup, name)
-		if err != nil {
-			return fmt.Errorf("reading monitor configuration for HDInsight Hadoop Cluster %q (Resource Group %q): %+v", name, resourceGroup, err)
-		}
-
-		d.Set("monitor", flattenHDInsightMonitoring(monitor))
-
-		extension, err := extensionsClient.GetAzureMonitorStatus(ctx, resourceGroup, name)
-		if err != nil {
-			return fmt.Errorf("reading extension configuration for HDInsight Hadoop Cluster %q (Resource Group %q) %+v", name, resourceGroup, err)
-		}
-
-		d.Set("extension", flattenHDInsightAzureMonitor(extension))
-
-		if err := d.Set("security_profile", flattenHDInsightSecurityProfile(props.SecurityProfile, d)); err != nil {
-			return fmt.Errorf("setting `security_profile`: %+v", err)
-		}
+		return tags.FlattenAndSet(d, m.Tags)
 	}
 
-	return tags.FlattenAndSet(d, resp.Tags)
+	return nil
 }
 
-func expandHDInsightSparkComponentVersion(input []interface{}) map[string]*string {
+func expandHDInsightSparkComponentVersion(input []interface{}) *map[string]string {
 	vs := input[0].(map[string]interface{})
-	return map[string]*string{
-		"Spark": utils.String(vs["spark"].(string)),
+	return &map[string]string{
+		"Spark": vs["spark"].(string),
 	}
 }
 
