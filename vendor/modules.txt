@@ -155,6 +155,8 @@ github.com/hashicorp/go-azure-sdk/resource-manager/applicationinsights/2020-11-2
 github.com/hashicorp/go-azure-sdk/resource-manager/applicationinsights/2022-04-01/workbooksapis
 github.com/hashicorp/go-azure-sdk/resource-manager/applicationinsights/2022-06-15/webtestsapis
 github.com/hashicorp/go-azure-sdk/resource-manager/attestation/2020-10-01/attestationproviders
+github.com/hashicorp/go-azure-sdk/resource-manager/automation/2015-10-31/agentregistrationinformation
+github.com/hashicorp/go-azure-sdk/resource-manager/automation/2015-10-31/runbookdraft
 github.com/hashicorp/go-azure-sdk/resource-manager/automation/2015-10-31/webhook
 github.com/hashicorp/go-azure-sdk/resource-manager/automation/2019-06-01/dscconfiguration
 github.com/hashicorp/go-azure-sdk/resource-manager/automation/2019-06-01/runbook

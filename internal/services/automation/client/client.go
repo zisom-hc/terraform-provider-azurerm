@@ -2,6 +2,7 @@ package client
 
 import (
 	"github.com/Azure/azure-sdk-for-go/services/preview/automation/mgmt/2020-01-13-preview/automation" // nolint: staticcheck
+	"github.com/hashicorp/go-azure-sdk/resource-manager/automation/2015-10-31/agentregistrationinformation"
 	"github.com/hashicorp/go-azure-sdk/resource-manager/automation/2015-10-31/webhook"
 	"github.com/hashicorp/go-azure-sdk/resource-manager/automation/2019-06-01/dscconfiguration"
 	"github.com/hashicorp/go-azure-sdk/resource-manager/automation/2019-06-01/runbook"
@@ -25,7 +26,7 @@ import (
 
 type Client struct {
 	AccountClient               *automationaccount.AutomationAccountClient
-	AgentRegistrationInfoClient *automation.AgentRegistrationInformationClient
+	AgentRegistrationInfoClient *agentregistrationinformation.AgentRegistrationInformationClient
 	CertificateClient           *certificate.CertificateClient
 	ConnectionClient            *connection.ConnectionClient
 	ConnectionTypeClient        *connectiontype.ConnectionTypeClient
@@ -35,8 +36,8 @@ type Client struct {
 	JobScheduleClient           *jobschedule.JobScheduleClient
 	ModuleClient                *module.ModuleClient
 	RunbookClient               *runbook.RunbookClient
-	RunbookClientHack           *automation.RunbookClient
-	RunbookDraftClient          *automation.RunbookDraftClient
+	RunbookClientHack           *automation.RunbookClient      // workaround for https://github.com/Azure/azure-sdk-for-go/issues/17591#issuecomment-1233676539
+	RunbookDraftClient          *automation.RunbookDraftClient // workaround for https://github.com/Azure/azure-sdk-for-go/issues/17591#issuecomment-1233676539
 	RunBookWgClient             *hybridrunbookworkergroup.HybridRunbookWorkerGroupClient
 	RunbookWorkerClient         *hybridrunbookworker.HybridRunbookWorkerClient
 	ScheduleClient              *schedule.ScheduleClient
@@ -51,7 +52,7 @@ func NewClient(o *common.ClientOptions) *Client {
 	accountClient := automationaccount.NewAutomationAccountClientWithBaseURI(o.ResourceManagerEndpoint)
 	o.ConfigureClient(&accountClient.Client, o.ResourceManagerAuthorizer)
 
-	agentRegistrationInfoClient := automation.NewAgentRegistrationInformationClientWithBaseURI(o.ResourceManagerEndpoint, o.SubscriptionId)
+	agentRegistrationInfoClient := agentregistrationinformation.NewAgentRegistrationInformationClientWithBaseURI(o.ResourceManagerEndpoint)
 	o.ConfigureClient(&agentRegistrationInfoClient.Client, o.ResourceManagerAuthorizer)
 
 	certificateClient := certificate.NewCertificateClientWithBaseURI(o.ResourceManagerEndpoint)
@@ -78,8 +79,8 @@ func NewClient(o *common.ClientOptions) *Client {
 	moduleClient := module.NewModuleClientWithBaseURI(o.ResourceManagerEndpoint)
 	o.ConfigureClient(&moduleClient.Client, o.ResourceManagerAuthorizer)
 
-	runbookClient2 := automation.NewRunbookClientWithBaseURI(o.ResourceManagerEndpoint, o.SubscriptionId)
-	o.ConfigureClient(&runbookClient2.Client, o.ResourceManagerAuthorizer)
+	runbookClientHack := automation.NewRunbookClientWithBaseURI(o.ResourceManagerEndpoint, o.SubscriptionId)
+	o.ConfigureClient(&runbookClientHack.Client, o.ResourceManagerAuthorizer)
 
 	runbookClient := runbook.NewRunbookClientWithBaseURI(o.ResourceManagerEndpoint)
 	o.ConfigureClient(&runbookClient.Client, o.ResourceManagerAuthorizer)
@@ -123,7 +124,7 @@ func NewClient(o *common.ClientOptions) *Client {
 		JobScheduleClient:           &jobScheduleClient,
 		ModuleClient:                &moduleClient,
 		RunbookClient:               &runbookClient,
-		RunbookClientHack:           &runbookClient2,
+		RunbookClientHack:           &runbookClientHack,
 		RunbookDraftClient:          &runbookDraftClient,
 		RunBookWgClient:             &runbookWgClient,
 		RunbookWorkerClient:         &runbookWorkerClient,

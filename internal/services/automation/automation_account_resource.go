@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/go-azure-helpers/resourcemanager/identity"
 	"github.com/hashicorp/go-azure-helpers/resourcemanager/location"
 	"github.com/hashicorp/go-azure-helpers/resourcemanager/tags"
+	"github.com/hashicorp/go-azure-sdk/resource-manager/automation/2015-10-31/agentregistrationinformation"
 	"github.com/hashicorp/go-azure-sdk/resource-manager/automation/2021-06-22/automationaccount"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-provider-azurerm/helpers/tf"
@@ -281,7 +282,8 @@ func resourceAutomationAccountRead(d *pluginsdk.ResourceData, meta interface{}) 
 		return fmt.Errorf("retrieving %s: %+v", *id, err)
 	}
 
-	keysResp, err := registrationClient.Get(ctx, id.ResourceGroupName, id.AutomationAccountName)
+	regId := agentregistrationinformation.NewAutomationAccountID(id.SubscriptionId, id.ResourceGroupName, id.AutomationAccountName)
+	keysResp, err := registrationClient.Get(ctx, regId)
 	if err != nil {
 		if response.WasNotFound(resp.HttpResponse) {
 			log.Printf("[DEBUG] Agent Registration Info for %s was not found - removing from state!", *id)
@@ -321,12 +323,13 @@ func resourceAutomationAccountRead(d *pluginsdk.ResourceData, meta interface{}) 
 		return fmt.Errorf("setting `encryption`: %+v", err)
 	}
 
-	d.Set("dsc_server_endpoint", keysResp.Endpoint)
-	if keys := keysResp.Keys; keys != nil {
-		d.Set("dsc_primary_access_key", keys.Primary)
-		d.Set("dsc_secondary_access_key", keys.Secondary)
+	if model := keysResp.Model; model != nil {
+		d.Set("dsc_server_endpoint", model.Endpoint)
+		if keys := model.Keys; keys != nil {
+			d.Set("dsc_primary_access_key", keys.Primary)
+			d.Set("dsc_secondary_access_key", keys.Secondary)
+		}
 	}
-
 	d.Set("hybrid_service_url", prop.AutomationHybridServiceUrl)
 
 	identity, err := identity.FlattenSystemAndUserAssignedMap(resp.Model.Identity)

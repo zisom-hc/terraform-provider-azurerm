@@ -310,7 +310,7 @@ func resourceAutomationRunbookCreateUpdate(d *pluginsdk.ResourceData, meta inter
 
 		// need to use preview version DraftClient
 		// move to stable RunbookDraftClient once this issue fixed: https://github.com/Azure/azure-sdk-for-go/issues/17591#issuecomment-1233676539
-		_, err := autoCli.RunbookDraftClient.ReplaceContent(ctx, id.ResourceGroupName, id.AutomationAccountName, id.RunbookName, reader)
+		_, err := autoCli.RunbookDraftClient.ReplaceContent(ctx, id, reader)
 		if err != nil {
 			return fmt.Errorf("setting the draft for %s: %+v", id, err)
 		}
