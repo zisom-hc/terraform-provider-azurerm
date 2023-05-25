@@ -8,15 +8,17 @@ import (
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/services/datafactory/mgmt/2018-06-01/datafactory" // nolint: staticcheck
+	"github.com/hashicorp/go-azure-helpers/lang/response"
 	"github.com/hashicorp/go-azure-helpers/resourcemanager/commonids"
 	"github.com/hashicorp/go-azure-helpers/resourcemanager/commonschema"
 	"github.com/hashicorp/go-azure-helpers/resourcemanager/identity"
+	"github.com/hashicorp/go-azure-sdk/resource-manager/datafactory/2018-06-01/factories"
 	"github.com/hashicorp/go-azure-sdk/resource-manager/purview/2021-07-01/account"
 	"github.com/hashicorp/terraform-provider-azurerm/helpers/azure"
 	"github.com/hashicorp/terraform-provider-azurerm/helpers/tf"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/clients"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/services/datafactory/migration"
-	"github.com/hashicorp/terraform-provider-azurerm/internal/services/datafactory/parse"
+
 	"github.com/hashicorp/terraform-provider-azurerm/internal/services/datafactory/validate"
 	keyVaultParse "github.com/hashicorp/terraform-provider-azurerm/internal/services/keyvault/parse"
 	keyVaultValidate "github.com/hashicorp/terraform-provider-azurerm/internal/services/keyvault/validate"
@@ -41,7 +43,7 @@ func resourceDataFactory() *pluginsdk.Resource {
 		}),
 
 		Importer: pluginsdk.ImporterValidatingResourceId(func(id string) error {
-			_, err := parse.DataFactoryID(id)
+			_, err := factories.ParseFactoryID(id)
 			return err
 		}),
 
@@ -220,16 +222,16 @@ func resourceDataFactoryCreateUpdate(d *pluginsdk.ResourceData, meta interface{}
 	ctx, cancel := timeouts.ForCreateUpdate(meta.(*clients.Client).StopContext, d)
 	defer cancel()
 
-	id := parse.NewDataFactoryID(subscriptionId, d.Get("resource_group_name").(string), d.Get("name").(string))
+	id := factories.NewFactoryID(subscriptionId, d.Get("resource_group_name").(string), d.Get("name").(string))
 	if d.IsNewResource() {
-		existing, err := client.Get(ctx, id.ResourceGroup, id.FactoryName, "")
+		existing, err := client.Get(ctx, id, "")
 		if err != nil {
-			if !utils.ResponseWasNotFound(existing.Response) {
+			if !response.WasNotFound(existing.HttpResponse) {
 				return fmt.Errorf("checking for presence of existing %s: %+v", id, err)
 			}
 		}
 
-		if !utils.ResponseWasNotFound(existing.Response) {
+		if !response.WasNotFound(existing.HttpResponse) {
 			return tf.ImportAsExistsError("azurerm_data_factory", id.ID())
 		}
 	}
@@ -246,9 +248,9 @@ func resourceDataFactoryCreateUpdate(d *pluginsdk.ResourceData, meta interface{}
 	}
 
 	location := azure.NormalizeLocation(d.Get("location").(string))
-	dataFactory := datafactory.Factory{
+	dataFactory := factories.Factory{
 		Location: utils.String(location),
-		FactoryProperties: &datafactory.FactoryProperties{
+		Properties: &factories.FactoryProperties{
 			PublicNetworkAccess: publicNetworkAccess,
 		},
 		Identity: expandedIdentity,
@@ -267,7 +269,7 @@ func resourceDataFactoryCreateUpdate(d *pluginsdk.ResourceData, meta interface{}
 			return fmt.Errorf("could not parse Key Vault Key ID: %+v", err)
 		}
 
-		dataFactory.FactoryProperties.Encryption = &datafactory.EncryptionConfiguration{
+		dataFactory.FactoryProperties.Encryption = &factories.EncryptionConfiguration{
 			VaultBaseURL: &keyVaultKey.KeyVaultBaseUrl,
 			KeyName:      &keyVaultKey.Name,
 			KeyVersion:   &keyVaultKey.Version,
@@ -288,7 +290,7 @@ func resourceDataFactoryCreateUpdate(d *pluginsdk.ResourceData, meta interface{}
 	}
 
 	if hasRepo, repo := expandDataFactoryRepoConfiguration(d); hasRepo {
-		repoUpdate := datafactory.FactoryRepoUpdate{
+		repoUpdate := factories.FactoryRepoUpdate{
 			FactoryResourceID: utils.String(id.ID()),
 			RepoConfiguration: repo,
 		}
@@ -326,12 +328,12 @@ func resourceDataFactoryRead(d *pluginsdk.ResourceData, meta interface{}) error 
 	ctx, cancel := timeouts.ForRead(meta.(*clients.Client).StopContext, d)
 	defer cancel()
 
-	id, err := parse.DataFactoryID(d.Id())
+	id, err := factories.ParseFactoryID(d.Id())
 	if err != nil {
 		return err
 	}
 
-	resp, err := client.Get(ctx, id.ResourceGroup, id.FactoryName, "")
+	resp, err := client.Get(ctx, id, "")
 	if err != nil {
 		if utils.ResponseWasNotFound(resp.Response) {
 			d.SetId("")
@@ -426,7 +428,7 @@ func resourceDataFactoryDelete(d *pluginsdk.ResourceData, meta interface{}) erro
 	ctx, cancel := timeouts.ForDelete(meta.(*clients.Client).StopContext, d)
 	defer cancel()
 
-	id, err := parse.DataFactoryID(d.Id())
+	id, err := factories.ParseFactoryID(d.Id())
 	if err != nil {
 		return err
 	}
@@ -450,7 +452,7 @@ func expandDataFactoryRepoConfiguration(d *pluginsdk.ResourceData) (bool, datafa
 		repositoryName := vsts["repository_name"].(string)
 		rootFolder := vsts["root_folder"].(string)
 		tenantID := vsts["tenant_id"].(string)
-		return true, &datafactory.FactoryVSTSConfiguration{
+		return true, &factories.FactoryVSTSConfiguration{
 			AccountName:         &accountName,
 			CollaborationBranch: &branchName,
 			ProjectName:         &projectName,
@@ -467,7 +469,7 @@ func expandDataFactoryRepoConfiguration(d *pluginsdk.ResourceData) (bool, datafa
 		gitURL := github["git_url"].(string)
 		repositoryName := github["repository_name"].(string)
 		rootFolder := github["root_folder"].(string)
-		return true, &datafactory.FactoryGitHubConfiguration{
+		return true, &factories.FactoryGitHubConfiguration{
 			AccountName:         &accountName,
 			CollaborationBranch: &branchName,
 			HostName:            &gitURL,
@@ -503,7 +505,7 @@ func expandDataFactoryGlobalParameters(input []interface{}) (map[string]*datafac
 	return result, nil
 }
 
-func flattenDataFactoryRepoConfiguration(factory *datafactory.Factory) (datafactory.TypeBasicFactoryRepoConfiguration, []interface{}) {
+func flattenDataFactoryRepoConfiguration(factory *factories.Factory) (datafactory.TypeBasicFactoryRepoConfiguration, []interface{}) {
 	result := make([]interface{}, 0)
 
 	if properties := factory.FactoryProperties; properties != nil {
@@ -554,7 +556,7 @@ func flattenDataFactoryRepoConfiguration(factory *datafactory.Factory) (datafact
 	return datafactory.TypeBasicFactoryRepoConfigurationTypeFactoryRepoConfiguration, result
 }
 
-func expandIdentity(input []interface{}) (*datafactory.FactoryIdentity, error) {
+func expandIdentity(input []interface{}) (*factories.FactoryIdentity, error) {
 	expanded, err := identity.ExpandSystemAndUserAssignedMap(input)
 	if err != nil {
 		return nil, err
@@ -564,13 +566,13 @@ func expandIdentity(input []interface{}) (*datafactory.FactoryIdentity, error) {
 		return nil, nil
 	}
 
-	out := datafactory.FactoryIdentity{
-		Type: datafactory.FactoryIdentityType(string(expanded.Type)),
+	out := factories.FactoryIdentity{
+		Type: factories.FactoryIdentityType(string(expanded.Type)),
 	}
 
 	// work around the Swagger defining `SystemAssigned,UserAssigned` rather than `SystemAssigned, UserAssigned`
 	if expanded.Type == identity.TypeSystemAssignedUserAssigned {
-		out.Type = datafactory.FactoryIdentityTypeSystemAssignedUserAssigned
+		out.Type = factories.FactoryIdentityTypeSystemAssignedUserAssigned
 	}
 	if len(expanded.IdentityIds) > 0 {
 		userAssignedIdentities := make(map[string]interface{})
@@ -583,7 +585,7 @@ func expandIdentity(input []interface{}) (*datafactory.FactoryIdentity, error) {
 	return &out, nil
 }
 
-func flattenIdentity(input *datafactory.FactoryIdentity) (interface{}, error) {
+func flattenIdentity(input *factories.FactoryIdentity) (interface{}, error) {
 	var transform *identity.SystemAndUserAssignedMap
 
 	if input != nil {
@@ -593,7 +595,7 @@ func flattenIdentity(input *datafactory.FactoryIdentity) (interface{}, error) {
 		}
 
 		// work around the Swagger defining `SystemAssigned,UserAssigned` rather than `SystemAssigned, UserAssigned`
-		if input.Type == datafactory.FactoryIdentityTypeSystemAssignedUserAssigned {
+		if input.Type == factories.FactoryIdentityTypeSystemAssignedUserAssigned {
 			transform.Type = identity.TypeSystemAssignedUserAssigned
 		}
 

@@ -7,7 +7,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/services/datafactory/mgmt/2018-06-01/datafactory" // nolint: staticcheck
 	"github.com/hashicorp/terraform-provider-azurerm/internal/clients"
-	"github.com/hashicorp/terraform-provider-azurerm/internal/services/datafactory/parse"
+
 	"github.com/hashicorp/terraform-provider-azurerm/internal/tf/pluginsdk"
 )
 
@@ -19,7 +19,7 @@ func importDataFactoryLinkedService(expectType datafactory.TypeBasicLinkedServic
 		}
 
 		client := meta.(*clients.Client).DataFactory.LinkedServiceClient
-		resp, err := client.Get(ctx, id.ResourceGroup, id.FactoryName, id.Name, "")
+		resp, err := client.Get(ctx, id, linkedservices.GetOperationOptions{})
 		if err != nil {
 			return nil, fmt.Errorf("retrieving Data Factory %s: %+v", *id, err)
 		}

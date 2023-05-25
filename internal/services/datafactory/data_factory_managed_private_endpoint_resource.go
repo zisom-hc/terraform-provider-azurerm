@@ -10,7 +10,7 @@ import (
 	"github.com/hashicorp/terraform-provider-azurerm/helpers/azure"
 	"github.com/hashicorp/terraform-provider-azurerm/helpers/tf"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/clients"
-	"github.com/hashicorp/terraform-provider-azurerm/internal/services/datafactory/parse"
+
 	"github.com/hashicorp/terraform-provider-azurerm/internal/services/datafactory/validate"
 	networkParse "github.com/hashicorp/terraform-provider-azurerm/internal/services/network/parse"
 	networkValidate "github.com/hashicorp/terraform-provider-azurerm/internal/services/network/validate"
@@ -49,7 +49,7 @@ func resourceDataFactoryManagedPrivateEndpoint() *pluginsdk.Resource {
 				Type:         pluginsdk.TypeString,
 				Required:     true,
 				ForceNew:     true,
-				ValidateFunc: validate.DataFactoryID,
+				ValidateFunc: factories.ValidateFactoryID,
 			},
 
 			"target_resource_id": {
@@ -87,7 +87,7 @@ func resourceDataFactoryManagedPrivateEndpointCreate(d *pluginsdk.ResourceData, 
 	ctx, cancel := timeouts.ForCreate(meta.(*clients.Client).StopContext, d)
 	defer cancel()
 
-	dataFactoryId, err := parse.DataFactoryID(d.Get("data_factory_id").(string))
+	dataFactoryId, err := factories.ParseFactoryID(d.Get("data_factory_id").(string))
 	if err != nil {
 		return err
 	}
@@ -100,7 +100,7 @@ func resourceDataFactoryManagedPrivateEndpointCreate(d *pluginsdk.ResourceData, 
 		return fmt.Errorf("managed Private endpoints are only available after managed virtual network for %s is enabled", dataFactoryId)
 	}
 
-	id := parse.NewManagedPrivateEndpointID(subscriptionId, dataFactoryId.ResourceGroup, dataFactoryId.FactoryName, *managedVirtualNetworkName, d.Get("name").(string))
+	id := parse.NewManagedPrivateEndpointID(subscriptionId, dataFactoryId.ResourceGroupName, dataFactoryId.FactoryName, *managedVirtualNetworkName, d.Get("name").(string))
 	existing, err := getManagedPrivateEndpoint(ctx, client, id.ResourceGroup, id.FactoryName, *managedVirtualNetworkName, id.Name)
 	if err != nil {
 		return fmt.Errorf("checking for presence of existing %s: %+v", id, err)
@@ -176,7 +176,7 @@ func resourceDataFactoryManagedPrivateEndpointRead(d *pluginsdk.ResourceData, me
 		return err
 	}
 
-	resp, err := client.Get(ctx, id.ResourceGroup, id.FactoryName, id.ManagedVirtualNetworkName, id.Name, "")
+	resp, err := client.Get(ctx, id, id.ManagedVirtualNetworkName, id.Name, "")
 	if err != nil {
 		if utils.ResponseWasNotFound(resp.Response) {
 			d.SetId("")
@@ -187,7 +187,7 @@ func resourceDataFactoryManagedPrivateEndpointRead(d *pluginsdk.ResourceData, me
 	}
 
 	d.Set("name", id.Name)
-	d.Set("data_factory_id", parse.NewDataFactoryID(subscriptionId, id.ResourceGroup, id.FactoryName).ID())
+	d.Set("data_factory_id", factories.NewFactoryID(subscriptionId, id.ResourceGroup, id.FactoryName).ID())
 
 	if props := resp.Properties; props != nil {
 		d.Set("target_resource_id", props.PrivateLinkResourceID)
@@ -239,7 +239,7 @@ func getManagedPrivateEndpoint(ctx context.Context, client *datafactory.ManagedP
 
 func getManagedPrivateEndpointProvisionStatus(ctx context.Context, client *datafactory.ManagedPrivateEndpointsClient, id parse.ManagedPrivateEndpointId) pluginsdk.StateRefreshFunc {
 	return func() (interface{}, string, error) {
-		resp, err := client.Get(ctx, id.ResourceGroup, id.FactoryName, id.ManagedVirtualNetworkName, id.Name, "")
+		resp, err := client.Get(ctx, id, id.ManagedVirtualNetworkName, id.Name, "")
 		if err != nil || resp.Properties == nil || resp.Properties.ProvisioningState == nil {
 			return nil, "", fmt.Errorf("retrieving %s: %+v", id, err)
 		}

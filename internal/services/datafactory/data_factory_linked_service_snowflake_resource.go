@@ -6,9 +6,13 @@ import (
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/services/datafactory/mgmt/2018-06-01/datafactory" // nolint: staticcheck
+	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/resource-manager/datafactory/2018-06-01/factories"
+	"github.com/hashicorp/go-azure-sdk/resource-manager/datafactory/2018-06-01/linkedservices"
 	"github.com/hashicorp/terraform-provider-azurerm/helpers/tf"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/clients"
-	"github.com/hashicorp/terraform-provider-azurerm/internal/services/datafactory/parse"
+	"github.com/hashicorp/terraform-provider-azurerm/internal/services/synapse/parse"
+
 	"github.com/hashicorp/terraform-provider-azurerm/internal/services/datafactory/validate"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/tf/pluginsdk"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/tf/validation"
@@ -47,7 +51,7 @@ func resourceDataFactoryLinkedServiceSnowflake() *pluginsdk.Resource {
 				Type:         pluginsdk.TypeString,
 				Required:     true,
 				ForceNew:     true,
-				ValidateFunc: validate.DataFactoryID,
+				ValidateFunc: factories.ValidateFactoryID,
 			},
 
 			"connection_string": {
@@ -122,33 +126,33 @@ func resourceDataFactoryLinkedServiceSnowflake() *pluginsdk.Resource {
 
 func resourceDataFactoryLinkedServiceSnowflakeCreateUpdate(d *pluginsdk.ResourceData, meta interface{}) error {
 	client := meta.(*clients.Client).DataFactory.LinkedServiceClient
-	subscriptionId := meta.(*clients.Client).DataFactory.LinkedServiceClient.SubscriptionID
+	subscriptionId := meta.(*clients.Client).Account.SubscriptionId
 	ctx, cancel := timeouts.ForCreateUpdate(meta.(*clients.Client).StopContext, d)
 	defer cancel()
 
-	dataFactoryId, err := parse.DataFactoryID(d.Get("data_factory_id").(string))
+	dataFactoryId, err := factories.ParseFactoryID(d.Get("data_factory_id").(string))
 	if err != nil {
 		return err
 	}
 
-	id := parse.NewLinkedServiceID(subscriptionId, dataFactoryId.ResourceGroup, dataFactoryId.FactoryName, d.Get("name").(string))
+	id := linkedservices.NewLinkedServiceID(subscriptionId, dataFactoryId.ResourceGroupName, dataFactoryId.FactoryName, d.Get("name").(string))
 
 	if d.IsNewResource() {
-		existing, err := client.Get(ctx, id.ResourceGroup, id.FactoryName, id.Name, "")
+		existing, err := client.Get(ctx, id, linkedservices.GetOperationOptions{})
 		if err != nil {
-			if !utils.ResponseWasNotFound(existing.Response) {
+			if !response.WasNotFound(existing.HttpResponse) {
 				return fmt.Errorf("checking for presence of existing Data Factory Snowflake %s: %+v", id, err)
 			}
 		}
 
-		if !utils.ResponseWasNotFound(existing.Response) {
+		if !response.WasNotFound(existing.HttpResponse) {
 			return tf.ImportAsExistsError("azurerm_data_factory_linked_service_snowflake", id.ID())
 		}
 	}
 
 	password := d.Get("key_vault_password").([]interface{})
 
-	snowflakeLinkedService := &datafactory.SnowflakeLinkedService{
+	snowflakeLinkedService := &linkedservices.SnowflakeLinkedService{
 		Description: utils.String(d.Get("description").(string)),
 		SnowflakeLinkedServiceTypeProperties: &datafactory.SnowflakeLinkedServiceTypeProperties{
 			ConnectionString: d.Get("connection_string").(string),
@@ -174,7 +178,7 @@ func resourceDataFactoryLinkedServiceSnowflakeCreateUpdate(d *pluginsdk.Resource
 		snowflakeLinkedService.Annotations = &annotations
 	}
 
-	linkedService := datafactory.LinkedServiceResource{
+	linkedService := linkedservices.LinkedServiceResource{
 		Properties: snowflakeLinkedService,
 	}
 
@@ -197,9 +201,9 @@ func resourceDataFactoryLinkedServiceSnowflakeRead(d *pluginsdk.ResourceData, me
 		return err
 	}
 
-	dataFactoryId := parse.NewDataFactoryID(id.SubscriptionId, id.ResourceGroup, id.FactoryName)
+	dataFactoryId := factories.NewFactoryID(id.SubscriptionId, id.ResourceGroup, id.FactoryName)
 
-	resp, err := client.Get(ctx, id.ResourceGroup, id.FactoryName, id.Name, "")
+	resp, err := client.Get(ctx, id, linkedservices.GetOperationOptions{})
 	if err != nil {
 		if utils.ResponseWasNotFound(resp.Response) {
 			d.SetId("")

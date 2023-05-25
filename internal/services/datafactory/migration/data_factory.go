@@ -5,7 +5,7 @@ import (
 	"log"
 
 	"github.com/Azure/azure-sdk-for-go/services/datafactory/mgmt/2018-06-01/datafactory" // nolint: staticcheck
-	"github.com/hashicorp/terraform-provider-azurerm/internal/services/datafactory/parse"
+
 	"github.com/hashicorp/terraform-provider-azurerm/internal/tf/pluginsdk"
 )
 
@@ -288,7 +288,7 @@ func (DataFactoryV1ToV2) UpgradeFunc() pluginsdk.StateUpgraderFunc {
 		log.Printf("[DEBUG] Updating `id` if resourceName is in upper case")
 
 		oldId := rawState["id"].(string)
-		id, err := parse.DataFactoryID(oldId)
+		id, err := factories.ParseFactoryID(oldId)
 		if err != nil {
 			return nil, err
 		}

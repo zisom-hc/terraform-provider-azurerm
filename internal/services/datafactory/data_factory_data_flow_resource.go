@@ -5,9 +5,11 @@ import (
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/services/datafactory/mgmt/2018-06-01/datafactory" // nolint: staticcheck
+	`github.com/hashicorp/go-azure-sdk/resource-manager/datafactory/2018-06-01/datasets`
+	`github.com/hashicorp/go-azure-sdk/resource-manager/datafactory/2018-06-01/factories`
 	"github.com/hashicorp/terraform-provider-azurerm/helpers/tf"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/clients"
-	"github.com/hashicorp/terraform-provider-azurerm/internal/services/datafactory/parse"
+
 	"github.com/hashicorp/terraform-provider-azurerm/internal/services/datafactory/validate"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/tf/pluginsdk"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/tf/validation"
@@ -45,7 +47,7 @@ func resourceDataFactoryDataFlow() *pluginsdk.Resource {
 				Type:         pluginsdk.TypeString,
 				Required:     true,
 				ForceNew:     true,
-				ValidateFunc: validate.DataFactoryID,
+				ValidateFunc: factories.ValidateFactoryID,
 			},
 
 			"script": {
@@ -100,21 +102,21 @@ func resourceDataFactoryDataFlowCreateUpdate(d *pluginsdk.ResourceData, meta int
 	ctx, cancel := timeouts.ForCreateUpdate(meta.(*clients.Client).StopContext, d)
 	defer cancel()
 
-	dataFactoryId, err := parse.DataFactoryID(d.Get("data_factory_id").(string))
+	dataFactoryId, err := factories.ParseFactoryID(d.Get("data_factory_id").(string))
 	if err != nil {
 		return err
 	}
 
-	id := parse.NewDataFlowID(subscriptionId, dataFactoryId.ResourceGroup, dataFactoryId.FactoryName, d.Get("name").(string))
+	id := parse.NewDataFlowID(subscriptionId, dataFactoryId.ResourceGroupName, dataFactoryId.FactoryName, d.Get("name").(string))
 	if d.IsNewResource() {
-		existing, err := client.Get(ctx, id.ResourceGroup, id.FactoryName, id.Name, "")
+		existing, err := client.Get(ctx, id, datasets.GetOperationOptions{})
 		if err != nil {
-			if !utils.ResponseWasNotFound(existing.Response) {
+			if !response.WasNotFound(existing.HttpResponse) {
 				return fmt.Errorf("checking for presence of existing %s: %+v", id, err)
 			}
 		}
 
-		if !utils.ResponseWasNotFound(existing.Response) {
+		if !response.WasNotFound(existing.HttpResponse) {
 			return tf.ImportAsExistsError("azurerm_data_factory_data_flow", id.ID())
 		}
 	}
@@ -168,7 +170,7 @@ func resourceDataFactoryDataFlowRead(d *pluginsdk.ResourceData, meta interface{}
 		return err
 	}
 
-	resp, err := client.Get(ctx, id.ResourceGroup, id.FactoryName, id.Name, "")
+	resp, err := client.Get(ctx, id, datasets.GetOperationOptions{})
 	if err != nil {
 		if utils.ResponseWasNotFound(resp.Response) {
 			d.SetId("")
@@ -184,7 +186,7 @@ func resourceDataFactoryDataFlowRead(d *pluginsdk.ResourceData, meta interface{}
 	}
 
 	d.Set("name", id.Name)
-	d.Set("data_factory_id", parse.NewDataFactoryID(id.SubscriptionId, id.ResourceGroup, id.FactoryName).ID())
+	d.Set("data_factory_id", factories.NewFactoryID(id.SubscriptionId, id.ResourceGroup, id.FactoryName).ID())
 	d.Set("description", mappingDataFlow.Description)
 
 	if err := d.Set("annotations", flattenDataFactoryAnnotations(mappingDataFlow.Annotations)); err != nil {

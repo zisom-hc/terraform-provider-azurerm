@@ -1,59 +1,105 @@
 package client
 
 import (
-	"github.com/Azure/azure-sdk-for-go/services/datafactory/mgmt/2018-06-01/datafactory" // nolint: staticcheck
+	"fmt"
+
+	"github.com/hashicorp/go-azure-sdk/resource-manager/datafactory/2018-06-01/dataflowdebugsession"
+	"github.com/hashicorp/go-azure-sdk/resource-manager/datafactory/2018-06-01/dataflows"
+	"github.com/hashicorp/go-azure-sdk/resource-manager/datafactory/2018-06-01/datasets"
+	"github.com/hashicorp/go-azure-sdk/resource-manager/datafactory/2018-06-01/factories"
+	"github.com/hashicorp/go-azure-sdk/resource-manager/datafactory/2018-06-01/integrationruntimes"
+	"github.com/hashicorp/go-azure-sdk/resource-manager/datafactory/2018-06-01/linkedservices"
+	"github.com/hashicorp/go-azure-sdk/resource-manager/datafactory/2018-06-01/managedprivateendpoints"
+	"github.com/hashicorp/go-azure-sdk/resource-manager/datafactory/2018-06-01/managedvirtualnetworks"
+	"github.com/hashicorp/go-azure-sdk/resource-manager/datafactory/2018-06-01/pipelines"
+	"github.com/hashicorp/go-azure-sdk/resource-manager/datafactory/2018-06-01/triggers"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/common"
 )
 
 type Client struct {
-	DataFlowClient                *datafactory.DataFlowsClient
-	DatasetClient                 *datafactory.DatasetsClient
-	FactoriesClient               *datafactory.FactoriesClient
-	IntegrationRuntimesClient     *datafactory.IntegrationRuntimesClient
-	LinkedServiceClient           *datafactory.LinkedServicesClient
-	ManagedPrivateEndpointsClient *datafactory.ManagedPrivateEndpointsClient
-	ManagedVirtualNetworksClient  *datafactory.ManagedVirtualNetworksClient
-	PipelinesClient               *datafactory.PipelinesClient
-	TriggersClient                *datafactory.TriggersClient
+	DataFlowClient                *dataflows.DataFlowsClient
+	DataFlowDebugSessionClient    *dataflowdebugsession.DataFlowDebugSessionClient
+	DatasetClient                 *datasets.DatasetsClient
+	FactoriesClient               *factories.FactoriesClient
+	IntegrationRuntimesClient     *integrationruntimes.IntegrationRuntimesClient
+	LinkedServiceClient           *linkedservices.LinkedServicesClient
+	ManagedPrivateEndpointsClient *managedprivateendpoints.ManagedPrivateEndpointsClient
+	ManagedVirtualNetworksClient  *managedvirtualnetworks.ManagedVirtualNetworksClient
+	PipelinesClient               *pipelines.PipelinesClient
+	TriggersClient                *triggers.TriggersClient
 }
 
-func NewClient(o *common.ClientOptions) *Client {
-	dataFlowClient := datafactory.NewDataFlowsClientWithBaseURI(o.ResourceManagerEndpoint, o.SubscriptionId)
-	o.ConfigureClient(&dataFlowClient.Client, o.ResourceManagerAuthorizer)
+func NewClient(o *common.ClientOptions) (*Client, error) {
+	dataFlowClient, err := dataflows.NewDataFlowsClientWithBaseURI(o.Environment.ResourceManager)
+	if err != nil {
+		return nil, fmt.Errorf("building DataFlowClient client: %+v", err)
+	}
+	o.Configure(dataFlowClient.Client, o.Authorizers.ResourceManager)
 
-	DatasetClient := datafactory.NewDatasetsClientWithBaseURI(o.ResourceManagerEndpoint, o.SubscriptionId)
-	o.ConfigureClient(&DatasetClient.Client, o.ResourceManagerAuthorizer)
+	dataFlowDebugSessionClient, err := dataflowdebugsession.NewDataFlowDebugSessionClientWithBaseURI(o.Environment.ResourceManager)
+	if err != nil {
+		return nil, fmt.Errorf("building DataFlowDebugSession client: %+v", err)
+	}
+	o.Configure(dataFlowDebugSessionClient.Client, o.Authorizers.ResourceManager)
 
-	FactoriesClient := datafactory.NewFactoriesClientWithBaseURI(o.ResourceManagerEndpoint, o.SubscriptionId)
-	o.ConfigureClient(&FactoriesClient.Client, o.ResourceManagerAuthorizer)
+	datasetClient, err := datasets.NewDatasetsClientWithBaseURI(o.Environment.ResourceManager)
+	if err != nil {
+		return nil, fmt.Errorf("building DatasetClient client: %+v", err)
+	}
+	o.Configure(datasetClient.Client, o.Authorizers.ResourceManager)
 
-	IntegrationRuntimesClient := datafactory.NewIntegrationRuntimesClientWithBaseURI(o.ResourceManagerEndpoint, o.SubscriptionId)
-	o.ConfigureClient(&IntegrationRuntimesClient.Client, o.ResourceManagerAuthorizer)
+	factoriesClient, err := factories.NewFactoriesClientWithBaseURI(o.Environment.ResourceManager)
+	if err != nil {
+		return nil, fmt.Errorf("building FactoriesClient client: %+v", err)
+	}
+	o.Configure(factoriesClient.Client, o.Authorizers.ResourceManager)
 
-	LinkedServiceClient := datafactory.NewLinkedServicesClientWithBaseURI(o.ResourceManagerEndpoint, o.SubscriptionId)
-	o.ConfigureClient(&LinkedServiceClient.Client, o.ResourceManagerAuthorizer)
+	integrationRuntimesClient, err := integrationruntimes.NewIntegrationRuntimesClientWithBaseURI(o.Environment.ResourceManager)
+	if err != nil {
+		return nil, fmt.Errorf("building IntegrationRuntimesClient client: %+v", err)
+	}
+	o.Configure(integrationRuntimesClient.Client, o.Authorizers.ResourceManager)
 
-	ManagedPrivateEndpointsClient := datafactory.NewManagedPrivateEndpointsClientWithBaseURI(o.ResourceManagerEndpoint, o.SubscriptionId)
-	o.ConfigureClient(&ManagedPrivateEndpointsClient.Client, o.ResourceManagerAuthorizer)
+	linkedServiceClient, err := linkedservices.NewLinkedServicesClientWithBaseURI(o.Environment.ResourceManager)
+	if err != nil {
+		return nil, fmt.Errorf("building LinkedServiceClient client: %+v", err)
+	}
+	o.Configure(linkedServiceClient.Client, o.Authorizers.ResourceManager)
 
-	ManagedVirtualNetworksClient := datafactory.NewManagedVirtualNetworksClientWithBaseURI(o.ResourceManagerEndpoint, o.SubscriptionId)
-	o.ConfigureClient(&ManagedVirtualNetworksClient.Client, o.ResourceManagerAuthorizer)
+	managedPrivateEndpointsClient, err := managedprivateendpoints.NewManagedPrivateEndpointsClientWithBaseURI(o.Environment.ResourceManager)
+	if err != nil {
+		return nil, fmt.Errorf("building ManagedPrivateEndpointsClient client: %+v", err)
+	}
+	o.Configure(managedPrivateEndpointsClient.Client, o.Authorizers.ResourceManager)
 
-	PipelinesClient := datafactory.NewPipelinesClientWithBaseURI(o.ResourceManagerEndpoint, o.SubscriptionId)
-	o.ConfigureClient(&PipelinesClient.Client, o.ResourceManagerAuthorizer)
+	managedVirtualNetworksClient, err := managedvirtualnetworks.NewManagedVirtualNetworksClientWithBaseURI(o.Environment.ResourceManager)
+	if err != nil {
+		return nil, fmt.Errorf("building ManagedVirtualNetworksClient client: %+v", err)
+	}
+	o.Configure(managedVirtualNetworksClient.Client, o.Authorizers.ResourceManager)
 
-	TriggersClient := datafactory.NewTriggersClientWithBaseURI(o.ResourceManagerEndpoint, o.SubscriptionId)
-	o.ConfigureClient(&TriggersClient.Client, o.ResourceManagerAuthorizer)
+	pipelinesClient, err := pipelines.NewPipelinesClientWithBaseURI(o.Environment.ResourceManager)
+	if err != nil {
+		return nil, fmt.Errorf("building PipelinesClient client: %+v", err)
+	}
+	o.Configure(pipelinesClient.Client, o.Authorizers.ResourceManager)
+
+	triggersClient, err := triggers.NewTriggersClientWithBaseURI(o.Environment.ResourceManager)
+	if err != nil {
+		return nil, fmt.Errorf("building TriggersClient client: %+v", err)
+	}
+	o.Configure(triggersClient.Client, o.Authorizers.ResourceManager)
 
 	return &Client{
-		DataFlowClient:                &dataFlowClient,
-		DatasetClient:                 &DatasetClient,
-		FactoriesClient:               &FactoriesClient,
-		IntegrationRuntimesClient:     &IntegrationRuntimesClient,
-		LinkedServiceClient:           &LinkedServiceClient,
-		ManagedPrivateEndpointsClient: &ManagedPrivateEndpointsClient,
-		ManagedVirtualNetworksClient:  &ManagedVirtualNetworksClient,
-		PipelinesClient:               &PipelinesClient,
-		TriggersClient:                &TriggersClient,
-	}
+		DataFlowClient:                dataFlowClient,
+		DataFlowDebugSessionClient:    dataFlowDebugSessionClient,
+		DatasetClient:                 datasetClient,
+		FactoriesClient:               factoriesClient,
+		IntegrationRuntimesClient:     integrationRuntimesClient,
+		LinkedServiceClient:           linkedServiceClient,
+		ManagedPrivateEndpointsClient: managedPrivateEndpointsClient,
+		ManagedVirtualNetworksClient:  managedVirtualNetworksClient,
+		PipelinesClient:               pipelinesClient,
+		TriggersClient:                triggersClient,
+	}, nil
 }

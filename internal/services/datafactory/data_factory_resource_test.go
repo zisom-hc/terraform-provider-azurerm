@@ -8,7 +8,7 @@ import (
 	"github.com/hashicorp/terraform-provider-azurerm/internal/acceptance"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/acceptance/check"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/clients"
-	"github.com/hashicorp/terraform-provider-azurerm/internal/services/datafactory/parse"
+
 	"github.com/hashicorp/terraform-provider-azurerm/internal/tf/pluginsdk"
 	"github.com/hashicorp/terraform-provider-azurerm/utils"
 )
@@ -305,7 +305,7 @@ func TestAccDataFactory_managedVirtualNetworkUpdated(t *testing.T) {
 }
 
 func (t DataFactoryResource) Exists(ctx context.Context, clients *clients.Client, state *pluginsdk.InstanceState) (*bool, error) {
-	id, err := parse.DataFactoryID(state.ID)
+	id, err := factories.ParseFactoryID(state.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -319,7 +319,7 @@ func (t DataFactoryResource) Exists(ctx context.Context, clients *clients.Client
 }
 
 func (DataFactoryResource) Destroy(ctx context.Context, client *clients.Client, state *pluginsdk.InstanceState) (*bool, error) {
-	id, err := parse.DataFactoryID(state.ID)
+	id, err := factories.ParseFactoryID(state.ID)
 	if err != nil {
 		return nil, err
 	}
