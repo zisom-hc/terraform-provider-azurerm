@@ -27,7 +27,8 @@ func TestExpandFeatures(t *testing.T) {
 					RecoverSoftDeleted:       true,
 				},
 				ApplicationInsights: features.ApplicationInsightFeatures{
-					DisableGeneratedRule: false,
+					DeleteSmartDetectionActionGroupDuringDeletion: false,
+					DisableGeneratedRule:                          false,
 				},
 				CognitiveAccount: features.CognitiveAccountFeatures{
 					PurgeSoftDeleteOnDestroy: true,
@@ -85,7 +86,8 @@ func TestExpandFeatures(t *testing.T) {
 					},
 					"application_insights": []interface{}{
 						map[string]interface{}{
-							"disable_generated_rule": true,
+							"delete_smart_detection_action_group_during_deletion": true,
+							"disable_generated_rule":                              true,
 						},
 					},
 					"cognitive_account": []interface{}{
@@ -152,7 +154,8 @@ func TestExpandFeatures(t *testing.T) {
 					RecoverSoftDeleted:       true,
 				},
 				ApplicationInsights: features.ApplicationInsightFeatures{
-					DisableGeneratedRule: true,
+					DeleteSmartDetectionActionGroupDuringDeletion: true,
+					DisableGeneratedRule:                          true,
 				},
 				CognitiveAccount: features.CognitiveAccountFeatures{
 					PurgeSoftDeleteOnDestroy: true,
@@ -210,7 +213,8 @@ func TestExpandFeatures(t *testing.T) {
 					},
 					"application_insights": []interface{}{
 						map[string]interface{}{
-							"disable_generated_rule": false,
+							"delete_smart_detection_action_group_during_deletion": false,
+							"disable_generated_rule":                              false,
 						},
 					},
 					"cognitive_account": []interface{}{
@@ -277,7 +281,8 @@ func TestExpandFeatures(t *testing.T) {
 					RecoverSoftDeleted:       false,
 				},
 				ApplicationInsights: features.ApplicationInsightFeatures{
-					DisableGeneratedRule: false,
+					DeleteSmartDetectionActionGroupDuringDeletion: false,
+					DisableGeneratedRule:                          false,
 				},
 				CognitiveAccount: features.CognitiveAccountFeatures{
 					PurgeSoftDeleteOnDestroy: false,
@@ -484,41 +489,46 @@ func TestExpandFeaturesApplicationInsights(t *testing.T) {
 			},
 			Expected: features.UserFeatures{
 				ApplicationInsights: features.ApplicationInsightFeatures{
-					DisableGeneratedRule: false,
+					DeleteSmartDetectionActionGroupDuringDeletion: false,
+					DisableGeneratedRule:                          false,
 				},
 			},
 		},
 		{
-			Name: "Disable Generated Rule",
+			Name: "Enable Generated Rule and Action Group Deleted on Deletion",
 			Input: []interface{}{
 				map[string]interface{}{
 					"application_insights": []interface{}{
 						map[string]interface{}{
-							"disable_generated_rule": true,
+							"delete_smart_detection_action_group_during_deletion": true,
+							"disable_generated_rule":                              true,
 						},
 					},
 				},
 			},
 			Expected: features.UserFeatures{
 				ApplicationInsights: features.ApplicationInsightFeatures{
-					DisableGeneratedRule: true,
+					DeleteSmartDetectionActionGroupDuringDeletion: true,
+					DisableGeneratedRule:                          true,
 				},
 			},
 		},
 		{
-			Name: "Enable Generated Rule",
+			Name: "Disable Generated Rule and Action Group Deleted on Deletion",
 			Input: []interface{}{
 				map[string]interface{}{
 					"application_insights": []interface{}{
 						map[string]interface{}{
-							"disable_generated_rule": false,
+							"delete_smart_detection_action_group_during_deletion": false,
+							"disable_generated_rule":                              false,
 						},
 					},
 				},
 			},
 			Expected: features.UserFeatures{
 				ApplicationInsights: features.ApplicationInsightFeatures{
-					DisableGeneratedRule: false,
+					DeleteSmartDetectionActionGroupDuringDeletion: false,
+					DisableGeneratedRule:                          false,
 				},
 			},
 		},

@@ -11,6 +11,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/services/preview/alertsmanagement/mgmt/2019-06-01-preview/alertsmanagement" // nolint: staticcheck
 	"github.com/hashicorp/go-azure-helpers/resourcemanager/commonschema"
 	"github.com/hashicorp/go-azure-helpers/resourcemanager/location"
+	"github.com/hashicorp/go-azure-sdk/resource-manager/insights/2023-01-01/actiongroupsapis"
 	"github.com/hashicorp/go-azure-sdk/resource-manager/operationalinsights/2020-08-01/workspaces"
 	"github.com/hashicorp/terraform-provider-azurerm/helpers/tf"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/clients"
@@ -406,6 +407,7 @@ func resourceApplicationInsightsRead(d *pluginsdk.ResourceData, meta interface{}
 func resourceApplicationInsightsDelete(d *pluginsdk.ResourceData, meta interface{}) error {
 	client := meta.(*clients.Client).AppInsights.ComponentsClient
 	ruleClient := meta.(*clients.Client).Monitor.SmartDetectorAlertRulesClient
+	actionGroupClient := meta.(*clients.Client).Monitor.ActionGroupsClient
 	ctx, cancel := timeouts.ForDelete(meta.(*clients.Client).StopContext, d)
 	defer cancel()
 
@@ -424,13 +426,21 @@ func resourceApplicationInsightsDelete(d *pluginsdk.ResourceData, meta interface
 		return fmt.Errorf("issuing AzureRM delete request for Application Insights %q: %+v", id.Name, err)
 	}
 
-	// if disable_generated_rule=true, the generated rule is not automatically deleted.
+	// if disable_generated_rule=true, the generated rule is automatically deleted.
 	if meta.(*clients.Client).Features.ApplicationInsights.DisableGeneratedRule {
 		ruleName := fmt.Sprintf("Failure Anomalies - %s", id.Name)
 		ruleId := monitorParse.NewSmartDetectorAlertRuleID(id.SubscriptionId, id.ResourceGroup, ruleName)
 		deleteResp, deleteErr := ruleClient.Delete(ctx, ruleId.ResourceGroup, ruleId.Name)
 		if deleteErr != nil && deleteResp.StatusCode != http.StatusNotFound {
 			return fmt.Errorf("deleting %s: %+v", ruleId, deleteErr)
+		}
+	}
+
+	if meta.(*clients.Client).Features.ApplicationInsights.DeleteSmartDetectionActionGroupDuringDeletion {
+		actionGroupId := actiongroupsapis.NewActionGroupID(id.SubscriptionId, id.ResourceGroup, "Application Insights Smart Detection")
+		resp, err := actionGroupClient.ActionGroupsDelete(ctx, actionGroupId)
+		if err != nil && resp.HttpResponse.StatusCode != http.StatusNotFound {
+			return fmt.Errorf("deleting %s: %+v", actionGroupId, err)
 		}
 	}
 

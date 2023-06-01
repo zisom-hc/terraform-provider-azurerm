@@ -61,6 +61,12 @@ func schemaFeatures(supportLegacyTestSuite bool) *pluginsdk.Schema {
 			MaxItems: 1,
 			Elem: &pluginsdk.Resource{
 				Schema: map[string]*pluginsdk.Schema{
+					"delete_smart_detection_action_group_during_deletion": {
+						Type:     pluginsdk.TypeBool,
+						Optional: true,
+						Default:  false,
+					},
+
 					"disable_generated_rule": {
 						Type:     pluginsdk.TypeBool,
 						Optional: true,
@@ -330,6 +336,9 @@ func expandFeatures(input []interface{}) features.UserFeatures {
 		items := raw.([]interface{})
 		if len(items) > 0 && items[0] != nil {
 			applicationInsightsRaw := items[0].(map[string]interface{})
+			if v, ok := applicationInsightsRaw["delete_smart_detection_action_group_during_deletion"]; ok {
+				featuresMap.ApplicationInsights.DeleteSmartDetectionActionGroupDuringDeletion = v.(bool)
+			}
 			if v, ok := applicationInsightsRaw["disable_generated_rule"]; ok {
 				featuresMap.ApplicationInsights.DisableGeneratedRule = v.(bool)
 			}

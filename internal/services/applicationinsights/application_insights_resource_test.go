@@ -265,6 +265,22 @@ func TestAccApplicationInsights_disableGeneratedRule(t *testing.T) {
 	})
 }
 
+func TestAccApplicationInsights_deleteSmartDetectionOnDelete(t *testing.T) {
+	data := acceptance.BuildTestData(t, "azurerm_application_insights", "test")
+	r := AppInsightsResource{}
+
+	data.ResourceTest(t, r, []acceptance.TestStep{
+		{
+			Config: r.deleteSmartDetectionOnDelete(data, "web"),
+			Check: acceptance.ComposeTestCheckFunc(
+				check.That(data.ResourceName).ExistsInAzure(r),
+				check.That(data.ResourceName).Key("application_type").HasValue("web"),
+			),
+		},
+		data.ImportStep(),
+	})
+}
+
 func (AppInsightsResource) basic(data acceptance.TestData, applicationType string) string {
 	return fmt.Sprintf(`
 provider "azurerm" {
@@ -486,6 +502,31 @@ provider "azurerm" {
   features {
     application_insights {
       disable_generated_rule = true
+    }
+  }
+}
+
+resource "azurerm_resource_group" "test" {
+  name     = "acctestRG-appinsights-%d"
+  location = "%s"
+}
+
+resource "azurerm_application_insights" "test" {
+  name                = "acctestappinsights-%d"
+  location            = azurerm_resource_group.test.location
+  resource_group_name = azurerm_resource_group.test.name
+  application_type    = "%s"
+}
+`, data.RandomInteger, data.Locations.Primary, data.RandomInteger, applicationType)
+}
+
+func (t AppInsightsResource) deleteSmartDetectionOnDelete(data acceptance.TestData, applicationType string) string {
+	return fmt.Sprintf(`
+provider "azurerm" {
+  features {
+    application_insights {
+      disable_generated_rule                              = true
+      delete_smart_detection_action_group_during_deletion = true
     }
   }
 }

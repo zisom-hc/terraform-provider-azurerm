@@ -60,7 +60,8 @@ type ApiManagementFeatures struct {
 }
 
 type ApplicationInsightFeatures struct {
-	DisableGeneratedRule bool
+	DeleteSmartDetectionActionGroupDuringDeletion bool
+	DisableGeneratedRule                          bool
 }
 
 type ManagedDiskFeatures struct {

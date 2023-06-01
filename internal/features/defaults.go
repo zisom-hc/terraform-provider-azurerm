@@ -12,7 +12,8 @@ func Default() UserFeatures {
 			RecoverSoftDeleted:       true,
 		},
 		ApplicationInsights: ApplicationInsightFeatures{
-			DisableGeneratedRule: false,
+			DeleteSmartDetectionActionGroupDuringDeletion: false,
+			DisableGeneratedRule:                          false,
 		},
 		CognitiveAccount: CognitiveAccountFeatures{
 			PurgeSoftDeleteOnDestroy: true,

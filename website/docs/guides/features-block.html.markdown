@@ -38,6 +38,7 @@ provider "azurerm" {
     }
 
     application_insights {
+      delete_smart_detection_action_group_during_deletion = false
       disable_generated_rule = false
     }
 
@@ -121,14 +122,17 @@ The `app_configuration` block supports the following:
 
 * `purge_soft_delete_on_destroy` - (Optional) Should the `azurerm_app_configuration` resources be permanently deleted (e.g. purged) when destroyed? Defaults to `true`.
 
-* `recover_soft_deleted` - (Optional) Should the `azurerm_app_configuration` resources recover a Soft-Deleted App Configuration service? Defaults to `true`
-*
+* `recover_soft_deleted` - (Optional) Should the `azurerm_app_configuration` resources recover a Soft-Deleted App Configuration service? Defaults to `true`.
 
 ---
 
 The `application_insights` block supports the following:
 
 * `disable_generated_rule` - (Optional) Should the `azurerm_application_insights` resources disable the Azure generated Alert Rule during the create step? Defaults to `false`.
+
+* `delete_smart_detection_action_group_during_deletion` - (Optional) Should the `azurerm_application_insights` resources delete the Azure generated "Application Insights Smart Detection" Action Group during delete? Defaults to `false`.
+
+~> **Note:** Only one "Application Insights Smart Detection" Action Group is automatically generated per subscription when an Application Insights resource is created. This flag should not be used if there are other Application Insights resources within the subscription using the Action Group.
 
 ---
 
